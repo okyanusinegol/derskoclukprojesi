@@ -1,0 +1,989 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <title>LGS Hata Defteri | Teknofest</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- Tailwind CSS (CDN) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- Tesseract.js -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@v5.0.0/dist/tesseract.min.js"></script>
+
+  <style>
+    /* Arka plan gradyan + cam efekti */
+    body {
+      background: radial-gradient(circle at top, #1f2937 0, #020617 45%, #000 100%);
+    }
+    .glass {
+      background: rgba(15,23,42,0.9);
+      border: 1px solid rgba(148,163,184,0.3);
+      box-shadow: 0 25px 50px -12px rgba(15,23,42,0.9);
+      backdrop-filter: blur(18px);
+    }
+    .scrollbar-thin::-webkit-scrollbar {
+      width: 6px;
+    }
+    .scrollbar-thin::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .scrollbar-thin::-webkit-scrollbar-thumb {
+      background-color: rgba(148,163,184,0.6);
+      border-radius: 9999px;
+    }
+  </style>
+</head>
+<body class="min-h-screen text-slate-100 font-sans">
+
+  <!-- Ana container -->
+  <div class="max-w-6xl mx-auto px-4 py-8 space-y-8">
+
+    <!-- Üst başlık -->
+    <header class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div>
+        <div class="inline-flex items-center gap-3 px-4 py-2 rounded-full glass">
+          <span class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-emerald-500/10 text-emerald-400">
+            <i data-lucide="sparkles" class="w-4 h-4"></i>
+          </span>
+          <div class="text-sm">
+            <p class="font-semibold tracking-wide uppercase text-emerald-400">Teknofest • LGS</p>
+            <p class="text-slate-300">AI destekli LGS Hata Defteri & Hoca Asistanı</p>
+          </div>
+        </div>
+        <h1 class="mt-4 text-3xl md:text-4xl font-bold tracking-tight">
+          LGS Hata Defteri
+          <span class="block text-xl md:text-2xl text-slate-300 font-medium">Gamification + OCR + Gemini</span>
+        </h1>
+      </div>
+      <div class="glass rounded-2xl px-4 py-3 flex items-center gap-3">
+        <div class="w-10 h-10 rounded-full bg-gradient-to-tr from-emerald-500 to-cyan-400 flex items-center justify-center text-slate-900 font-bold text-lg">
+          L
+        </div>
+        <div class="text-sm">
+          <p class="font-semibold">LGS Modu Aktif</p>
+          <p class="text-slate-400">Tüm veriler tarayıcında (localStorage)</p>
+          <p id="apiKeyStatus" class="text-[11px] mt-1 text-amber-400">
+            Lütfen API anahtarınızı URL üzerinden tanıtın: <span class="font-mono">?api-key=YOUR_KEY</span>
+          </p>
+        </div>
+      </div>
+    </header>
+
+    <!-- Üst satır: Seviye + XP + Puan Kartları -->
+    <section class="grid md:grid-cols-3 gap-6">
+      <!-- Seviye Kartı -->
+      <div class="glass rounded-2xl p-5 flex flex-col justify-between">
+        <div class="flex items-center justify-between mb-3">
+          <p class="text-sm font-semibold text-slate-300 uppercase tracking-wide">Seviye</p>
+          <i data-lucide="shield" class="w-4 h-4 text-emerald-400"></i>
+        </div>
+        <p class="text-4xl font-black text-emerald-400" id="userLevelText">1</p>
+        <p class="text-slate-400 text-sm mt-1">Çözdükçe seviye atla, sıralamada yüksel.</p>
+      </div>
+
+      <!-- XP Bar Kartı -->
+      <div class="glass rounded-2xl p-5">
+        <div class="flex items-center justify-between mb-3">
+          <p class="text-sm font-semibold text-slate-300 uppercase tracking-wide">XP Çubuğu</p>
+          <span class="text-xs text-slate-400" id="xpLabelText">0 / 100 XP</span>
+        </div>
+        <div class="w-full h-3 rounded-full bg-slate-800 overflow-hidden">
+          <div id="xpBarFill" class="h-full rounded-full bg-gradient-to-r from-emerald-400 via-cyan-400 to-blue-500 transition-all duration-500" style="width: 0%;"></div>
+        </div>
+        <p class="mt-2 text-xs text-slate-400">
+          Her taranan soru için XP kazanırsın. Her <span class="text-emerald-400 font-semibold">100 XP</span> bir seviye.
+        </p>
+      </div>
+
+      <!-- Global Rank Kartı -->
+      <div class="glass rounded-2xl p-5 flex flex-col justify-between">
+        <div class="flex items-center justify-between mb-3">
+          <p class="text-sm font-semibold text-slate-300 uppercase tracking-wide">Global Sıralama</p>
+          <i data-lucide="trophy" class="w-4 h-4 text-yellow-400"></i>
+        </div>
+        <p class="text-4xl font-black text-yellow-400" id="globalRankText">#11</p>
+        <p class="text-slate-400 text-sm mt-1" id="rankSubtitleText">Sanal LGS yarışında yerin.</p>
+      </div>
+    </section>
+
+    <!-- Orta satır: Tarayıcı + Grafikler -->
+    <section class="grid lg:grid-cols-3 gap-6 items-start">
+
+      <!-- Tarama Bölümü -->
+      <div class="lg:col-span-2 glass rounded-2xl p-5 space-y-4">
+        <div class="flex items-center justify-between gap-3">
+          <div>
+            <h2 class="text-lg font-semibold flex items-center gap-2">
+              <i data-lucide="scan-line" class="w-5 h-5 text-emerald-400"></i>
+              Soru Tarayıcı
+            </h2>
+            <p class="text-sm text-slate-400">Fotoğraf yükle ya da çek, metni OCR ile okuyalım, Gemini ile dersi tespit edelim.</p>
+          </div>
+          <button id="clearDataBtn" class="text-xs px-3 py-1.5 rounded-full border border-slate-700 text-slate-300 hover:bg-slate-800 transition-colors">
+            Verileri Sıfırla
+          </button>
+        </div>
+
+        <!-- Upload butonu -->
+        <div class="border border-dashed border-slate-700 rounded-2xl p-5 flex flex-col md:flex-row items-center justify-between gap-4 bg-slate-900/40">
+          <div class="space-y-2">
+            <p class="font-medium text-slate-100">Soru Fotoğrafı Yükle</p>
+            <p class="text-xs text-slate-400">
+              LGS deneme sınavından bir soru fotoğrafı seç. Metin cihazında işlenecek.
+            </p>
+          </div>
+          <div class="flex items-center gap-3">
+            <input id="imageInput" type="file" accept="image/*" capture="environment" class="hidden" />
+            <button id="uploadButton" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-500 text-slate-900 font-semibold text-sm hover:bg-emerald-400 transition-colors">
+              <i data-lucide="camera" class="w-4 h-4"></i>
+              Fotoğraf Seç / Çek
+            </button>
+          </div>
+        </div>
+
+        <!-- OCR & Ders Sonucu -->
+        <div class="grid md:grid-cols-2 gap-4">
+          <!-- OCR Çıktısı -->
+          <div class="flex flex-col">
+            <div class="flex items-center justify-between mb-2">
+              <p class="text-sm font-semibold text-slate-300 flex items-center gap-1.5">
+                <i data-lucide="align-left" class="w-4 h-4 text-sky-400"></i>
+                OCR Metni
+              </p>
+              <span id="ocrStatus" class="text-xs text-slate-500">Bekleniyor...</span>
+            </div>
+            <div class="relative flex-1">
+              <textarea id="ocrText" class="w-full h-48 resize-none rounded-xl bg-slate-950/60 border border-slate-800 text-slate-100 text-sm p-3 scrollbar-thin focus:outline-none focus:ring-1 focus:ring-emerald-500/70" placeholder="Fotoğrafı seçtiğinde burada okunmuş metni göreceksin. Gerekirse elle de düzenleyebilirsin."></textarea>
+              <button id="reclassifyBtn" class="absolute bottom-3 right-3 px-3 py-1.5 rounded-full bg-slate-800 text-xs text-slate-200 border border-slate-700 hover:bg-slate-700 transition-colors">
+                Metne Göre Dersi Tahmin Et
+              </button>
+            </div>
+          </div>
+
+          <!-- Ders Tahmini & Özet -->
+          <div class="space-y-3">
+            <div class="glass rounded-xl p-3">
+              <p class="text-xs font-semibold text-slate-300 uppercase tracking-wide mb-1.5">Tahmini LGS Dersi</p>
+              <p id="detectedSubject" class="text-2xl font-bold text-emerald-400">-</p>
+              <p class="text-xs text-slate-400 mt-1" id="subjectHintText">
+                Gemini, soru metnine göre alanı (Matematik, Fen, Türkçe vb.) tahmin eder.
+              </p>
+            </div>
+            <div class="glass rounded-xl p-3">
+              <p class="text-xs font-semibold text-slate-300 uppercase tracking-wide mb-1.5">Gemini Kısa Notu</p>
+              <div id="subjectSummary" class="text-xs text-slate-300 max-h-32 overflow-y-auto scrollbar-thin">
+                Henüz not yok. Bir soru taradığında burada kısa bir analiz & çalışma önerisi göreceksin.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Grafikler -->
+      <div class="glass rounded-2xl p-5 space-y-4">
+        <div class="flex items-center justify-between">
+          <h2 class="text-sm font-semibold text-slate-300 uppercase tracking-wide flex items-center gap-2">
+            <i data-lucide="bar-chart-3" class="w-4 h-4 text-emerald-400"></i>
+            Hata Analitiği
+          </h2>
+          <span class="text-xs text-slate-500" id="totalScansBadge">0 soru işlendi</span>
+        </div>
+        <p class="text-xs text-slate-400">
+          Hangi dersten kaç soru işlediğini gösterir. Her yeni taramada otomatik güncellenir.
+        </p>
+        <div class="relative h-52">
+          <canvas id="subjectChart"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <!-- Alt satır: Liderlik Tablosu -->
+    <section class="glass rounded-2xl p-5">
+      <div class="flex items-center justify-between mb-3">
+        <div class="flex items-center gap-2">
+          <i data-lucide="list-ordered" class="w-4 h-4 text-emerald-400"></i>
+          <h2 class="text-sm font-semibold text-slate-300 uppercase tracking-wide">Liderlik Tablosu (Simülasyon)</h2>
+        </div>
+        <p class="text-xs text-slate-400">
+          Sanal rakiplerinle karşılaştır. Verilerin sadece bu tarayıcıda.
+        </p>
+      </div>
+
+      <div class="overflow-hidden rounded-xl border border-slate-800 bg-slate-950/40">
+        <table class="min-w-full text-sm">
+          <thead class="bg-slate-900/80 text-slate-400 text-xs uppercase tracking-wide">
+            <tr>
+              <th class="px-4 py-2 text-left">Sıra</th>
+              <th class="px-4 py-2 text-left">İsim</th>
+              <th class="px-4 py-2 text-right">Seviye</th>
+              <th class="px-4 py-2 text-right">XP</th>
+            </tr>
+          </thead>
+          <tbody id="leaderboardBody" class="divide-y divide-slate-800">
+            <!-- JavaScript ile doldurulacak -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <!-- Yüzen AI Chat Penceresi -->
+  <div id="chatWidget" class="fixed bottom-4 right-4 z-40">
+    <!-- Aç/Kapat butonu -->
+    <button id="chatToggleBtn" class="glass rounded-full px-4 py-2 flex items-center gap-2 hover:bg-slate-900/90 transition-colors">
+      <i data-lucide="message-circle" class="w-4 h-4 text-emerald-400"></i>
+      <span class="text-sm font-semibold">AI LGS Hocası</span>
+    </button>
+
+    <!-- Pencere -->
+    <div id="chatWindow" class="hidden mt-3 w-96 max-h-[620px] glass rounded-2xl overflow-hidden flex flex-col">
+      <div class="px-4 py-3 flex items-center justify-between border-b border-slate-800">
+        <div>
+          <p class="text-sm font-semibold">LGS Öğretmeni (Gemini)</p>
+          <p class="text-[11px] text-slate-400">
+            "Sen bir LGS öğretmenisin. Soru gelince cevabı söyleme, sadece ipucu ver."
+          </p>
+        </div>
+        <button id="closeChatBtn" class="text-slate-400 hover:text-slate-100 transition-colors">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+      <div id="chatMessages" class="flex-1 px-3 py-3 space-y-3 overflow-y-auto scrollbar-thin text-sm bg-slate-950/40">
+        <!-- Mesajlar -->
+      </div>
+      <form id="chatForm" class="border-t border-slate-800 bg-slate-900/70 px-2 py-3 flex items-center gap-2">
+        <textarea id="chatInput" rows="2" class="flex-1 resize-none bg-transparent text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none" placeholder="Soruyu ya da konuyu yaz..."></textarea>
+        <button type="submit" class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-emerald-500 text-slate-900 hover:bg-emerald-400 transition-colors">
+          <i data-lucide="arrow-up-right" class="w-4 h-4"></i>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Ana Script -->
+  <script>
+    /* ============================
+       1. GLOBAL SABİT & DURUM
+    ============================ */
+
+    const DEFAULT_STATE = {
+      xp: 0,
+      totalScans: 0,
+      errorsBySubject: {
+        "Matematik": 0,
+        "Fen": 0,
+        "Türkçe": 0,
+        "İnkılap": 0,
+        "İngilizce": 0,
+        "Din": 0,
+      }
+    };
+
+    const STORAGE_KEY = "lgs_hata_defteri_state_v1";
+    const USERNAME_KEY = "lgs_hata_defteri_username";
+
+    let appState = { ...DEFAULT_STATE };
+    let subjectChart = null;
+    let chatHistory = []; // {role: 'user'|'model', text: '...'}
+    let username = null;
+    const GEMINI_API_KEY_STORAGE_KEY = "GEMINI_API_KEY_SECURE";
+
+    /* ============================
+       2. LOCALSTORAGE YARDIMCILARI
+    ============================ */
+
+    function loadStateFromStorage() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          appState = {
+            ...DEFAULT_STATE,
+            ...parsed,
+            errorsBySubject: {
+              ...DEFAULT_STATE.errorsBySubject,
+              ...(parsed.errorsBySubject || {})
+            }
+          };
+        }
+      } catch (e) {
+        console.warn("localStorage okunamadı:", e);
+        appState = { ...DEFAULT_STATE };
+      }
+
+      try {
+        const storedName = localStorage.getItem(USERNAME_KEY);
+        if (storedName && storedName.trim() !== "") {
+          username = storedName.trim();
+        } else {
+          username = "Sen";
+        }
+      } catch (e) {
+        username = "Sen";
+      }
+    }
+
+    function saveStateToStorage() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
+      } catch (e) {
+        console.warn("localStorage yazılamadı:", e);
+      }
+    }
+
+    function saveUsername(name) {
+      try {
+        localStorage.setItem(USERNAME_KEY, name);
+      } catch (e) {
+        console.warn("Kullanıcı adı kaydedilemedi:", e);
+      }
+    }
+
+    /* ============================
+       3. GEMINI API YARDIMCISI
+    ============================ */
+
+    function getStoredGeminiApiKey() {
+      try {
+        const key = localStorage.getItem(GEMINI_API_KEY_STORAGE_KEY);
+        if (key && key.trim() !== "") {
+          return key.trim();
+        }
+      } catch (e) {
+        console.warn("Gemini API anahtarı localStorage'dan okunamadı:", e);
+      }
+      return null;
+    }
+
+    function updateApiKeyStatus(hasKey) {
+      const el = document.getElementById("apiKeyStatus");
+      if (!el) return;
+
+      if (hasKey) {
+        el.textContent = "Gemini API anahtarı yüklendi (localStorage).";
+        el.className = "text-[11px] mt-1 text-emerald-400";
+      } else {
+        el.textContent = "Lütfen API anahtarınızı URL üzerinden tanıtın: ?api-key=YOUR_KEY";
+        el.className = "text-[11px] mt-1 text-amber-400";
+      }
+    }
+
+    function initGeminiApiKeyFromUrl() {
+      let apiKeyFromUrl = null;
+      try {
+        const url = new URL(window.location.href);
+        apiKeyFromUrl = url.searchParams.get("api-key");
+
+        if (apiKeyFromUrl && apiKeyFromUrl.trim() !== "") {
+          try {
+            localStorage.setItem(GEMINI_API_KEY_STORAGE_KEY, apiKeyFromUrl.trim());
+          } catch (e) {
+            console.warn("Gemini API anahtarı localStorage'a kaydedilemedi:", e);
+          }
+
+          url.searchParams.delete("api-key");
+          const newUrl = url.pathname + (url.search || "") + (url.hash || "");
+          window.history.replaceState({}, document.title, newUrl);
+        }
+      } catch (e) {
+        console.warn("URL'den API anahtarı okunamadı:", e);
+      }
+
+      const hasKey = !!getStoredGeminiApiKey();
+      updateApiKeyStatus(hasKey);
+    }
+
+    function initGeminiApiKeyInteractive() {
+      const existing = getStoredGeminiApiKey();
+      if (existing) {
+        updateApiKeyStatus(true);
+        return;
+      }
+
+      const entered = prompt(
+        "Gemini API anahtarını gir (yalnızca bu tarayıcıda localStorage'da saklanır):",
+        ""
+      );
+
+      if (entered && entered.trim() !== "") {
+        try {
+          localStorage.setItem(GEMINI_API_KEY_STORAGE_KEY, entered.trim());
+          updateApiKeyStatus(true);
+        } catch (e) {
+          console.warn("Gemini API anahtarı localStorage'a kaydedilemedi:", e);
+          updateApiKeyStatus(false);
+        }
+      } else {
+        updateApiKeyStatus(false);
+      }
+    }
+
+    function requireGeminiApiKey() {
+      let key = getStoredGeminiApiKey();
+
+      if (!key) {
+        // Önce URL parametresinden çekmeyi dene
+        initGeminiApiKeyFromUrl();
+        key = getStoredGeminiApiKey();
+      }
+
+      if (!key) {
+        // Hâlâ yoksa kullanıcıdan bir kez giriş iste
+        initGeminiApiKeyInteractive();
+        key = getStoredGeminiApiKey();
+      }
+
+      if (!key) {
+        throw new Error("Gemini API anahtarı tanımlanmamış. Lütfen tekrar deneyin.");
+      }
+
+      updateApiKeyStatus(true);
+      return key;
+    }
+
+    async function callGeminiSinglePrompt(systemPrompt, userPrompt) {
+      const apiKey = requireGeminiApiKey();
+
+      const url =
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" +
+        encodeURIComponent(apiKey);
+
+      const body = {
+        contents: [
+          {
+            role: "user",
+            parts: [
+              {
+                text: systemPrompt + "\n\nKULLANICI MESAJI:\n" + userPrompt
+              }
+            ]
+          }
+        ]
+      };
+
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(body)
+      });
+
+      if (!res.ok) {
+        const errorText = await res.text();
+        throw new Error("Gemini API hatası: " + res.status + " - " + errorText);
+      }
+
+      const data = await res.json();
+      const text =
+        data?.candidates?.[0]?.content?.parts
+          ?.map((p) => p.text || "")
+          .join("") || "";
+
+      if (!text) {
+        throw new Error("Gemini geçerli bir yanıt döndürmedi.");
+      }
+
+      return text.trim();
+    }
+
+    async function callGeminiChat(systemPrompt, history, newUserMessage) {
+      const apiKey = requireGeminiApiKey();
+
+      const url =
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" +
+        encodeURIComponent(apiKey);
+
+      // Basit: Tüm geçmişi tek "user" promptunda topla
+      let historyText = "";
+      for (const msg of history) {
+        historyText += (msg.role === "user" ? "ÖĞRENCİ: " : "ÖĞRETMEN: ") + msg.text + "\n";
+      }
+
+      const body = {
+        contents: [
+          {
+            role: "user",
+            parts: [
+              {
+                text:
+                  systemPrompt +
+                  "\n\nÖNCEKİ KONUŞMA:\n" +
+                  historyText +
+                  "\n\nYENİ ÖĞRENCİ MESAJI:\n" +
+                  newUserMessage
+              }
+            ]
+          }
+        ]
+      };
+
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(body)
+      });
+
+      if (!res.ok) {
+        const errorText = await res.text();
+        throw new Error("Gemini API hatası: " + res.status + " - " + errorText);
+      }
+
+      const data = await res.json();
+      const text =
+        data?.candidates?.[0]?.content?.parts
+          ?.map((p) => p.text || "")
+          .join("") || "";
+
+      if (!text) {
+        throw new Error("Gemini geçerli bir yanıt döndürmedi.");
+      }
+
+      return text.trim();
+    }
+
+    /* ============================
+       4. GAMIFICATION HESAPLAMALARI
+    ============================ */
+
+    function getLevelFromXp(xp) {
+      return Math.floor(xp / 100) + 1;
+    }
+
+    function getLevelProgressPercent(xp) {
+      const inLevel = xp % 100;
+      return Math.min(100, (inLevel / 100) * 100);
+    }
+
+    function addXp(amount) {
+      appState.xp += amount;
+      saveStateToStorage();
+      refreshDashboardUI();
+    }
+
+    function incrementSubjectCount(subjectName) {
+      if (!appState.errorsBySubject[subjectName]) {
+        appState.errorsBySubject[subjectName] = 0;
+      }
+      appState.errorsBySubject[subjectName] += 1;
+      appState.totalScans += 1;
+      saveStateToStorage();
+      refreshDashboardUI();
+      refreshCharts();
+    }
+
+    /* ============================
+       5. LİDERLİK TABLOSU
+    ============================ */
+
+    function getSimulatedLeaderboard() {
+      const basePlayers = [
+        { name: "Ayşe", xp: 820 },
+        { name: "Mehmet", xp: 650 },
+        { name: "Zeynep", xp: 1040 },
+        { name: "Burak", xp: 310 },
+        { name: "Elif", xp: 1500 },
+        { name: "Can", xp: 450 },
+        { name: "Deniz", xp: 2300 },
+        { name: "Ege", xp: 1200 },
+        { name: "Selin", xp: 980 },
+        { name: "Emir", xp: 700 }
+      ];
+
+      const currentUser = {
+        name: username || "Sen",
+        xp: appState.xp
+      };
+
+      const combined = [...basePlayers, currentUser];
+      combined.sort((a, b) => b.xp - a.xp);
+
+      const rank = combined.findIndex((p) => p.name === currentUser.name && p.xp === currentUser.xp) + 1;
+
+      return { list: combined, currentRank: rank };
+    }
+
+    function renderLeaderboard() {
+      const tbody = document.getElementById("leaderboardBody");
+      tbody.innerHTML = "";
+
+      const { list, currentRank } = getSimulatedLeaderboard();
+
+      list.forEach((player, index) => {
+        const tr = document.createElement("tr");
+        const isUser = player.name === (username || "Sen") && player.xp === appState.xp;
+
+        tr.className = isUser
+          ? "bg-emerald-500/10 text-emerald-100"
+          : "hover:bg-slate-900/80 transition-colors";
+
+        tr.innerHTML = `
+          <td class="px-4 py-2">
+            <span class="inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-semibold ${
+              index === 0
+                ? "bg-yellow-400 text-slate-900"
+                : index === 1
+                ? "bg-slate-200 text-slate-900"
+                : index === 2
+                ? "bg-amber-600 text-slate-100"
+                : "bg-slate-800 text-slate-200"
+            }">
+              ${index + 1}
+            </span>
+          </td>
+          <td class="px-4 py-2">
+            <span class="font-medium">${player.name}${isUser ? " (Sen)" : ""}</span>
+          </td>
+          <td class="px-4 py-2 text-right">
+            <span>${getLevelFromXp(player.xp)}</span>
+          </td>
+          <td class="px-4 py-2 text-right">
+            <span class="font-mono">${player.xp}</span>
+          </td>
+        `;
+
+        tbody.appendChild(tr);
+      });
+
+      const rankTextEl = document.getElementById("globalRankText");
+      const rankSubtitleEl = document.getElementById("rankSubtitleText");
+      rankTextEl.textContent = "#" + currentRank;
+      rankSubtitleEl.textContent =
+        currentRank === 1
+          ? "Şampiyonsun! Kimse seni tutamaz."
+          : `Sanal tabloda ${currentRank}. sıradasın. Çalışmaya devam!`;
+    }
+
+    /* ============================
+       6. DASHBOARD & GRAFİKLER
+    ============================ */
+
+    function refreshDashboardUI() {
+      const level = getLevelFromXp(appState.xp);
+      const percent = getLevelProgressPercent(appState.xp);
+
+      const levelEl = document.getElementById("userLevelText");
+      const xpLabelEl = document.getElementById("xpLabelText");
+      const xpBarFill = document.getElementById("xpBarFill");
+      const totalScansBadge = document.getElementById("totalScansBadge");
+
+      levelEl.textContent = level;
+      xpLabelEl.textContent = (appState.xp % 100) + " / 100 XP";
+      xpBarFill.style.width = percent + "%";
+      totalScansBadge.textContent = appState.totalScans + " soru işlendi";
+
+      renderLeaderboard();
+    }
+
+    function initChart() {
+      const ctx = document.getElementById("subjectChart").getContext("2d");
+      const labels = Object.keys(appState.errorsBySubject);
+      const data = labels.map((k) => appState.errorsBySubject[k]);
+
+      subjectChart = new Chart(ctx, {
+        type: "bar",
+        data: {
+          labels,
+          datasets: [
+            {
+              label: "İşlenen Soru Sayısı",
+              data,
+              backgroundColor: [
+                "#34d399",
+                "#38bdf8",
+                "#a855f7",
+                "#f97316",
+                "#eab308",
+                "#22c55e"
+              ],
+              borderRadius: 6
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              labels: {
+                color: "#e5e7eb",
+                font: { size: 10 }
+              }
+            }
+          },
+          scales: {
+            x: {
+              ticks: { color: "#9ca3af", font: { size: 10 } },
+              grid: { display: false }
+            },
+            y: {
+              ticks: { color: "#9ca3af", font: { size: 10 }, precision: 0 },
+              grid: { color: "rgba(55,65,81,0.6)" }
+            }
+          }
+        }
+      });
+    }
+
+    function refreshCharts() {
+      if (!subjectChart) return;
+      const labels = Object.keys(appState.errorsBySubject);
+      subjectChart.data.labels = labels;
+      subjectChart.data.datasets[0].data = labels.map(
+        (k) => appState.errorsBySubject[k]
+      );
+      subjectChart.update();
+    }
+
+    /* ============================
+       7. OCR AKIŞI
+    ============================ */
+
+    function updateOcrStatus(text, colorClass) {
+      const el = document.getElementById("ocrStatus");
+      el.textContent = text;
+      el.className = "text-xs " + (colorClass || "text-slate-500");
+    }
+
+    async function handleImageFile(file) {
+      if (!file) return;
+      updateOcrStatus("OCR çalışıyor...", "text-emerald-400");
+      const ocrTextArea = document.getElementById("ocrText");
+      ocrTextArea.value = "";
+
+      try {
+        const worker = await Tesseract.createWorker("tur", 1, {
+          logger: (m) => {
+            if (m.status === "recognizing text" && m.progress) {
+              const p = Math.round(m.progress * 100);
+              updateOcrStatus("OCR: %" + p, "text-emerald-400");
+            }
+          }
+        });
+
+        const { data } = await worker.recognize(file);
+        await worker.terminate();
+
+        const text = (data.text || "").trim();
+        ocrTextArea.value = text;
+        updateOcrStatus("OCR tamamlandı.", "text-emerald-400");
+
+        if (text.length > 5) {
+          await classifySubjectFromText(text);
+        } else {
+          updateOcrStatus("Metin çok kısa, elle düzenleyip tekrar deneyebilirsin.", "text-amber-400");
+        }
+      } catch (e) {
+        console.error("OCR hatası:", e);
+        updateOcrStatus("OCR hatası: " + e.message, "text-red-400");
+      }
+    }
+
+    async function classifySubjectFromText(text) {
+      const detectedSubjectEl = document.getElementById("detectedSubject");
+      const subjectHintEl = document.getElementById("subjectHintText");
+      const subjectSummaryEl = document.getElementById("subjectSummary");
+
+      detectedSubjectEl.textContent = "...";
+      subjectHintEl.textContent = "Gemini metni analiz ediyor...";
+
+      const systemPrompt =
+        "Sen LGS seviyesinde bir asistanısın. " +
+        "Sana bir soru metni verilecek. Bu metne uygun LGS dersini " +
+        "yalnızca aşağıdaki seçeneklerden BİRİ olarak döndür:\n" +
+        "Matematik, Fen, Türkçe, İnkılap, İngilizce, Din.\n" +
+        "Cevabın sadece ders adı olsun, başka hiçbir şey yazma.";
+
+      try {
+        const subjectRaw = await callGeminiSinglePrompt(systemPrompt, text);
+        // İlk kelimeyi al
+        const cleaned = subjectRaw.split(/[\s,\.]/)[0].trim();
+        const validSubjects = Object.keys(DEFAULT_STATE.errorsBySubject);
+        const matched =
+          validSubjects.find((s) => s.toLowerCase().startsWith(cleaned.toLowerCase())) ||
+          "Matematik";
+
+        detectedSubjectEl.textContent = matched;
+        subjectHintEl.textContent = "Bu soru en çok " + matched + " dersi ile ilişkili görünüyor.";
+
+        incrementSubjectCount(matched);
+        addXp(15); // Her işleme için 15 XP
+
+        // Kısa çalışma önerisi
+        const summaryPrompt =
+          "Bu soru metni hangi konuya ait gibi görünüyor? " +
+          "Öğrenciye 2-3 cümlelik, sadece ipucu ve çalışma tavsiyesi içeren kısa bir not yaz. " +
+          "Kesin cevabı söyleme. Türkçe yaz.";
+        const note = await callGeminiSinglePrompt(summaryPrompt, text);
+        subjectSummaryEl.textContent = note;
+      } catch (e) {
+        console.error("Ders sınıflandırma hatası:", e);
+        detectedSubjectEl.textContent = "-";
+        subjectHintEl.textContent = "Gemini şu anda cevap veremiyor. API anahtarı veya interneti kontrol et.";
+        subjectSummaryEl.textContent =
+          "Şu anda AI notu alınamıyor. Yine de soru metnini buradan kaydedebilirsin.";
+      }
+    }
+
+    /* ============================
+       8. AI CHAT WIDGET
+    ============================ */
+
+    function appendChatMessage(role, text) {
+      const container = document.getElementById("chatMessages");
+      const bubble = document.createElement("div");
+      const isUser = role === "user";
+
+      bubble.className =
+        "max-w-[90%] px-3 py-2 rounded-xl text-sm leading-relaxed " +
+        (isUser
+          ? "ml-auto bg-emerald-500 text-slate-900"
+          : "mr-auto bg-slate-800 text-slate-100");
+
+      bubble.textContent = text;
+      container.appendChild(bubble);
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function initChatWidget() {
+      const toggleBtn = document.getElementById("chatToggleBtn");
+      const chatWindow = document.getElementById("chatWindow");
+      const closeChatBtn = document.getElementById("closeChatBtn");
+      const chatForm = document.getElementById("chatForm");
+      const chatInput = document.getElementById("chatInput");
+
+      toggleBtn.addEventListener("click", () => {
+        chatWindow.classList.toggle("hidden");
+      });
+
+      closeChatBtn.addEventListener("click", () => {
+        chatWindow.classList.add("hidden");
+      });
+
+      chatForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const message = chatInput.value.trim();
+        if (!message) return;
+
+        appendChatMessage("user", message);
+        chatHistory.push({ role: "user", text: message });
+        chatInput.value = "";
+
+        const systemPrompt =
+          "Sen bir LGS öğretmenisin. Ortaokul 8. sınıf seviyesinde konuş. " +
+          "Soru metni geldiğinde veya konu sorulduğunda asla direkt cevabı söyleme; " +
+          "önce öğrencinin nerede takıldığını sor, sonra küçük küçük ipuçları ver. " +
+          "Motivasyonel ve pozitif ol, ama gereksiz uzatma. Türkçe konuş.";
+
+        appendChatMessage("model", "Düşünüyorum...");
+
+        const placeholderIndex = chatHistory.length; // geçici
+
+        try {
+          const answer = await callGeminiChat(systemPrompt, chatHistory, message);
+          // Son eklenen "Düşünüyorum..." balonunu değiştir
+          const container = document.getElementById("chatMessages");
+          const lastBubble = container.lastChild;
+          if (lastBubble) {
+            lastBubble.textContent = answer;
+            lastBubble.className =
+              "max-w-[90%] px-3 py-2 rounded-xl text-xs leading-relaxed mr-auto bg-slate-800 text-slate-100";
+          }
+          chatHistory.push({ role: "model", text: answer });
+        } catch (err) {
+          console.error("Chat hatası:", err);
+          const container = document.getElementById("chatMessages");
+          const lastBubble = container.lastChild;
+          if (lastBubble) {
+            lastBubble.textContent =
+              "Şu anda yanıt veremiyorum. API anahtarını veya internet bağlantını kontrol eder misin?";
+            lastBubble.className =
+              "max-w-[90%] px-3 py-2 rounded-xl text-xs leading-relaxed mr-auto bg-red-500/20 text-red-200";
+          }
+        }
+      });
+    }
+
+    /* ============================
+       9. OLAY BAĞLANTILARI & BAŞLATMA
+    ============================ */
+
+    function askForUsernameOnce() {
+      if (username && username !== "Sen") return;
+      const maybe = prompt("İsmini ya da takma adını yaz (liderlik tablosunda gözükecek):", "Sen");
+      if (maybe && maybe.trim() !== "") {
+        username = maybe.trim();
+        saveUsername(username);
+      }
+    }
+
+    window.addEventListener("DOMContentLoaded", () => {
+      // Önce linkten api-key geldiyse onu al ve URL'den temizle
+      initGeminiApiKeyFromUrl();
+      // Sonra hiç anahtar yoksa kullanıcıdan iste
+      initGeminiApiKeyInteractive();
+      loadStateFromStorage();
+      askForUsernameOnce();
+      loadStateFromStorage(); // tekrar oku, isim de gelsin
+
+      // Lucide ikonlarını başlat
+      lucide.createIcons();
+
+      // Chart
+      initChart();
+
+      // Dashboard & Liderlik
+      refreshDashboardUI();
+      refreshCharts();
+
+      // Chat
+      initChatWidget();
+
+      // Upload butonu
+      const uploadButton = document.getElementById("uploadButton");
+      const imageInput = document.getElementById("imageInput");
+      uploadButton.addEventListener("click", () => imageInput.click());
+      imageInput.addEventListener("change", (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (file) {
+          handleImageFile(file);
+        }
+      });
+
+      // Metne göre tekrar sınıflandır
+      const reclassifyBtn = document.getElementById("reclassifyBtn");
+      reclassifyBtn.addEventListener("click", async () => {
+        const text = document.getElementById("ocrText").value.trim();
+        if (!text) {
+          updateOcrStatus("Önce metni yaz ya da OCR ile doldur.", "text-amber-400");
+          return;
+        }
+        updateOcrStatus("Metne göre analiz ediliyor...", "text-emerald-400");
+        await classifySubjectFromText(text);
+      });
+
+      // Verileri sıfırla
+      const clearDataBtn = document.getElementById("clearDataBtn");
+      clearDataBtn.addEventListener("click", () => {
+        const ok = confirm(
+          "Tüm XP, istatistikler ve liderlikteki yerin bu tarayıcıdan silinecek. Emin misin?"
+        );
+        if (!ok) return;
+        appState = { ...DEFAULT_STATE };
+        saveStateToStorage();
+        refreshDashboardUI();
+        refreshCharts();
+      });
+    });
+  </script>
+</body>
+</html>
