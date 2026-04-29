@@ -8,6 +8,14 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Sora:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="LGS Koçu">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#05080f">
+  
+  <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -18,10 +26,6 @@
   <header class="header fade-up" id="headerSection">
     <div>
       <div class="header-badges">
-        <span class="pill pill-green">
-          <svg width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="4" r="4" fill="currentColor"/></svg>
-          Teknofest 2025
-        </span>
         <span class="pill pill-blue">AI Koç</span>
         <span class="pill pill-purple">Soru Çözücü</span>
       </div>
@@ -195,6 +199,27 @@
     analyzeWithAI(text);
   }
 </script>
+
+<!-- ─── PWA OVERLAY ─── -->
+<div id="pwaOverlay" class="pwa-overlay hidden">
+  <div class="pwa-content fade-up">
+    <div class="pwa-icon">📱</div>
+    <h2>Uygulama Olarak Kur!</h2>
+    <p>Puter AI girişinin sorunsuz çalışması ve tam ekran deneyimi için LGS Koçu'nu ana ekrana eklemelisin.</p>
+    
+    <div class="pwa-steps">
+      <div class="pwa-step">
+        <span class="pwa-step-num">1</span>
+        <span id="pwaStep1">Tarayıcının <strong style="color:var(--accent)">menüsüne (⋮)</strong> veya paylaş butonuna dokun.</span>
+      </div>
+      <div class="pwa-step">
+        <span class="pwa-step-num">2</span>
+        <span id="pwaStep2"><strong style="color:var(--accent)">"Ana Ekrana Ekle"</strong> (Add to Home Screen) seçeneğini seç.</span>
+      </div>
+    </div>
+    <p style="font-size:0.75rem; color:var(--muted); margin-top:1rem;">Ana ekrana ekledikten sonra uygulamayı oradan aç.</p>
+  </div>
+</div>
 
 </body>
 </html>

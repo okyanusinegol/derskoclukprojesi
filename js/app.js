@@ -2,6 +2,38 @@
    APP — Ana Başlatıcı
 ═══════════════════════════════════════════ */
 window.addEventListener("DOMContentLoaded", () => {
+  // PWA & Service Worker
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./sw.js');
+  }
+
+  // Standalone Check (Eğer tarayıcıda açılmışsa uyarı göster)
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+  // Mobil veya dar ekranlarda uyarıyı göster
+  if (!isStandalone && window.innerWidth < 800) {
+    const pwaOverlay = document.getElementById("pwaOverlay");
+    if (pwaOverlay) {
+      pwaOverlay.classList.remove("hidden");
+      
+      // Tarayıcı Tespiti ve Özel Talimatlar
+      const ua = window.navigator.userAgent.toLowerCase();
+      const isIOS = /ipad|iphone|ipod/.test(ua) && !window.MSStream;
+      const isSafari = isIOS && /webkit/.test(ua) && !/crios/.test(ua) && !/fxios/.test(ua);
+      const isChrome = /chrome|crios/.test(ua) && !/edg/.test(ua);
+
+      const step1 = document.getElementById("pwaStep1");
+      const step2 = document.getElementById("pwaStep2");
+
+      if (isSafari) {
+        step1.innerHTML = 'Alt kısımdaki <strong style="color:var(--accent)">Paylaş (Kare ve Ok ⍐)</strong> ikonuna dokun.';
+        step2.innerHTML = 'Menüyü aşağı kaydır ve <strong style="color:var(--accent)">"Ana Ekrana Ekle"</strong> seçeneğini seç.';
+      } else if (isChrome) {
+        step1.innerHTML = 'Sağ üstteki <strong style="color:var(--accent)">Menü (⋮)</strong> ikonuna dokun.';
+        step2.innerHTML = 'Açılan menüden <strong style="color:var(--accent)">"Ana Ekrana Ekle"</strong> (veya Uygulamayı Yükle) seçeneğini seç.';
+      }
+    }
+  }
+
   load();
 
   if (username === "Sen") {

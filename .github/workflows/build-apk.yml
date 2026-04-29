@@ -1,0 +1,70 @@
+name: AkılYolu APK Build
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '21'
+
+      - name: Web Dosyalarını Temiz Bir Klasöre Topla
+        run: |
+          mkdir www
+          rsync -av --exclude='www' --exclude='.git' --exclude='.github' --exclude='android' --exclude='node_modules' ./ ./www/
+
+      - name: Capacitor Projesini Hazırla
+        run: |
+          echo '{"name": "akilyolu", "version": "1.0.0", "dependencies": {}}' > package.json
+          
+          npm install @capacitor/core@8 @capacitor/cli@8 @capacitor/android@8
+          
+          # Projenin kesin ve değişmez adı
+          npx cap init "AkılYolu" "com.emre.akilyolu" --web-dir www
+          
+          npx cap add android
+
+      - name: Dosyaları Senkronize Et
+        run: npx cap sync android
+
+      - name: Çakışan Kotlin Sınıflarını Çöz (Duplicate Class Fix)
+        run: |
+          cat << 'EOF' >> android/app/build.gradle
+          
+          configurations.all {
+              resolutionStrategy {
+                  dependencySubstitution {
+                      substitute module("org.jetbrains.kotlin:kotlin-stdlib-jdk7") using module("org.jetbrains.kotlin:kotlin-stdlib:2.3.21")
+                      substitute module("org.jetbrains.kotlin:kotlin-stdlib-jdk8") using module("org.jetbrains.kotlin:kotlin-stdlib:2.3.21")
+                  }
+              }
+          }
+          EOF
+
+      - name: APK'yı Derle
+        run: |
+          cd android
+          ./gradlew assembleDebug
+
+      - name: APK'yı GitHub'a Yükle
+        uses: actions/upload-artifact@v4
+        with:
+          name: Akil-Yolu-APK
+          path: android/app/build/outputs/apk/debug/app-debug.apk
