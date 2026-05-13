@@ -43,6 +43,15 @@ Kurallar:
   { "name": "Kitabın Adı", "subject": "Ders Adı", "difficulty": "Orta" }
 ]
 \`\`\`
+- ÖNEMLİ (UYGULAMA KONTROLÜ İÇİN): Eğer öğrenci temanın rengini (karanlık/aydınlık) değiştirmek, ismini değiştirmek veya başka bir sekmeye gitmek isterse şu JSON bloğunu kullan:
+\`\`\`action
+[
+  { "type": "theme", "value": "dark" }, 
+  { "type": "username", "value": "Emre" },
+  { "type": "navigate", "value": "home" } 
+]
+\`\`\`
+*(navigate için geçerli değerler: home, plan, scanner, coach, stats)*
 - Her zaman Türkçe konuş, bolca emoji kullan.`;
 }
 
@@ -265,6 +274,30 @@ async function sendChat(msgOverride) {
          result = result.replace(planMatch[0], "").trim() + "\n\n✅ *Arka planda programını güncelledim! Plan sekmesinden kontrol edebilirsin.*";
        } catch(e) {
          console.error("Plan ayrıştırma hatası", e);
+       }
+    }
+
+    // Agentic Application Action Parsing
+    const actionMatch = result.match(/```action\n([\s\S]*?)```/);
+    if (actionMatch) {
+       try {
+         const actionData = JSON.parse(actionMatch[1]);
+         actionData.forEach(action => {
+           if (action.type === "theme") {
+             state.theme = action.value; // "dark" or "light"
+             save();
+             if(typeof applyTheme === 'function') applyTheme();
+           } else if (action.type === "username") {
+             username = action.value;
+             saveUsername(username);
+             if(typeof refreshUI === 'function') refreshUI();
+           } else if (action.type === "navigate") {
+             if(typeof switchTab === 'function') switchTab(action.value);
+           }
+         });
+         result = result.replace(actionMatch[0], "").trim() + "\n\n⚙️ *İstediğin sistem ayarını uyguladım!*";
+       } catch(e) {
+         console.error("Action ayrıştırma hatası", e);
        }
     }
 
