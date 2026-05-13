@@ -21,12 +21,23 @@ Soruyu adım adım çöz:
 4. Doğru cevabı ve neden doğru olduğunu açıkla
 Türkçe yaz, ortaokul seviyesinde anlaşılır şekilde açıkla. Emojiler kullanarak görsel olarak zenginleştir.`;
 
-const COACH_PROMPT = `Sen LGS sınavına hazırlanan 8. sınıf öğrencisine yardım eden bir eğitim koçusun.
+function getCoachPrompt() {
+  const activeBooks = state.library.filter(b => !b.finished);
+  const booksData = activeBooks.map(b => ({ id: b.id, name: b.name, subject: b.subject }));
+  
+  return `Sen LGS sınavına hazırlanan 8. sınıf öğrencisine yardım eden bir eğitim koçusun.
 Kurallar:
 - Soru sorarsa veya tavsiye isterse destekleyici, motive edici ve rehberlik eden bir dille yanıt ver.
-- Ortaokul seviyesinde konuş, pozitif ve arkadaş canlısı ol.
-- Gereksiz uzun yazma, odaklı ve net kal.
+- Eğer öğrenci çalışma programı yapmanı, değiştirmesini veya yeni bir görev eklemeni isterse, elindeki aktif kitaplara göre bir plan oluştur.
+- ÖĞRENCİNİN AKTİF KİTAPLARI: ${JSON.stringify(booksData)}
+- ÖNEMLİ: Eğer öğrencinin programını güncelliyorsan, metin cevabının HERHANGİ BİR YERİNE mutlaka şu formatta bir JSON bloğu ekle (bunu sistem algılayıp uygulayacaktır):
+\`\`\`plan
+[
+  { "bookId": "ilgili_kitabin_id_si", "text": "Görev açıklaması (örn: Matematik Çarpanlar Test 1)", "questions": 20 }
+]
+\`\`\`
 - Her zaman Türkçe konuş, bolca emoji kullan.`;
+}
 
 const PLAN_PROMPT = `Sen bir LGS rehberlik uzmanısın. Öğrencinin sana verdiği aktif kitapları ve günlük soru hedefini kullanarak mantıklı bir görev dağılımı yapacaksın.
 KRİTİK KURALLAR (ANTI-HALÜSİNASYON):
@@ -200,11 +211,33 @@ async function sendChat(msgOverride) {
 
   try {
     const messages = [
-      { role: "system", content: COACH_PROMPT },
+      { role: "system", content: getCoachPrompt() },
       ...chatHistory.map(m => ({ role: m.role, content: m.content }))
     ];
 
-    const result = await fetchPollinations(messages);
+    let result = await fetchPollinations(messages);
+
+    // Agentic Plan Parsing
+    const planMatch = result.match(/```plan\n([\s\S]*?)```/);
+    if (planMatch) {
+       try {
+         const planData = JSON.parse(planMatch[1]);
+         state.dailyPlan.tasks = planData.map(p => ({
+            id: generateId(),
+            bookId: p.bookId || "",
+            text: p.text || "Görev",
+            questions: parseInt(p.questions) || 0,
+            isDone: false
+         }));
+         save();
+         if(typeof renderDailyPlan === 'function') renderDailyPlan();
+         
+         // Remove JSON block from the user-facing text and append success message
+         result = result.replace(planMatch[0], "").trim() + "\n\n✅ *Arka planda programını güncelledim! Plan sekmesinden kontrol edebilirsin.*";
+       } catch(e) {
+         console.error("Plan ayrıştırma hatası", e);
+       }
+    }
 
     thinking.textContent = result;
     thinking.classList.remove("thinking");
