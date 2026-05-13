@@ -19,41 +19,48 @@ Soruyu adım adım çöz:
 4. Doğru cevabı ve neden doğru olduğunu açıkla
 Türkçe yaz, ortaokul seviyesinde anlaşılır şekilde açıkla. Emojiler kullanarak görsel olarak zenginleştir.`;
 
-const COACH_PROMPT = `Sen LGS sınavına hazırlanan 8. sınıf öğrencisine yardım eden bir koç/öğretmensin.
+const COACH_PROMPT = `Sen LGS sınavına hazırlanan 8. sınıf öğrencisine yardım eden bir eğitim koçusun.
 Kurallar:
-- Soru geldiğinde asla direkt cevabı söyleme
-- Önce neyi anlamadığını sor, sonra küçük ipuçları ver
-- Ortaokul seviyesinde konuş, pozitif ve motive edici ol
-- Gereksiz uzun yazma, odaklı kal
-- Türkçe konuş, emojiler kullan`;
+- Soru sorarsa veya tavsiye isterse destekleyici, motive edici ve rehberlik eden bir dille yanıt ver.
+- Ortaokul seviyesinde konuş, pozitif ve arkadaş canlısı ol.
+- Gereksiz uzun yazma, odaklı ve net kal.
+- Her zaman Türkçe konuş, bolca emoji kullan.`;
 
-const SOLVE_CHAT_PROMPT = `Sen LGS sınavına hazırlanan 8. sınıf öğrencisine yardım eden bir öğretmensin.
-Kurallar:
-- Soruları adım adım çöz ve açıkla
-- Her adımda neden o işlemi yaptığını belirt
-- Ortaokul seviyesinde konuş, anlaşılır ol
-- Türkçe konuş, emojiler kullan`;
+const PLAN_PROMPT = `Sen bir LGS rehberlik uzmanısın. Öğrencinin sana verdiği aktif kitapları ve günlük soru hedefini kullanarak mantıklı bir görev dağılımı yapacaksın.
+KRİTİK KURALLAR (ANTI-HALÜSİNASYON):
+1. Fiziksel kitapların içeriğini bilemeyeceğin için ASLA "Test 3'ü çöz", "Sayfa 45'ten başla" gibi spesifik bilgiler uydurma.
+2. Çıktıda yalnızca kullanıcının elindeki kitapların isimlerini kullan ve her kitap için çözülmesi gereken TAHMİNİ soru sayısını belirle. Toplam soru sayısı hedefe yakın olmalıdır.
+3. Çıktı KESİNLİKLE VE YALNIZCA geçerli bir JSON array olmalıdır. Başka hiçbir açıklama yazma.
+Örnek Format:
+[
+  { "bookId": "verilenId", "text": "[Kitap Adı] kitabından yaklaşık 40 soru çöz", "questions": 40 }
+]
+`;
+
+const MISTAKE_ANALYSIS_PROMPT = `Sen uzman bir LGS Eğitim Koçusun. Öğrenci denemede yanlış yaptığı bir sorunun analizini veriyor.
+Aşağıdaki 'Hata Nedeni' (A, B veya C) durumuna göre JSON formatında kesin ve motive edici bir yanıt dönmelisin.
+A: "Konuyu Hiç Anlamadım"
+B: "Konuyu Anladım Ama Dikkat/Okuma Hatası Yaptım"
+C: "Konuyu Biliyorum Ama Bu Tarz (Yeni Nesil) Soru Görmemiştim"
+
+KURALLAR (ANTI-HALÜSİNASYON):
+Eğer Seçim A ise: "actionType" "video" olmalı. "link" alanına "https://www.youtube.com/results?search_query=" formatında doğrudan ve sadece kaliteli LGS kanallarını (Rehber Matematik, Tonguç Akademi, Partikül Matematik vb.) içeren bir URL üret (Örn: https://www.youtube.com/results?search_query=Rehber+Matematik+LGS+Üslü+Sayılar). Asla spesifik video linki uydurma.
+Eğer Seçim B ise: "actionType" "practice" olmalı. "practiceQuestions" alanına 15-20 arası bir sayı ver.
+Eğer Seçim C ise: "actionType" "video" veya "tactic" olabilir. Yeni nesil soru çözme taktikleri ver ve arama linki koy.
+
+ÇIKTI FORMATI SADECE JSON OLACAKTIR:
+{
+  "message": "<Öğrenciye sıcak, motive edici tavsiye metni>",
+  "actionType": "<video | practice | tactic>",
+  "link": "<A veya C ise arama linki, yoksa boş>",
+  "practiceQuestions": <B ise soru sayısı, yoksa 0>
+}`;
+
 
 let chatHistory = [];
-let chatMode = "coach"; // "coach" or "solve"
-let currentImageFile = null;
+let isFirstChat = true;
 
-function setChatMode(mode) {
-  chatMode = mode;
-  chatHistory = [];
-  const msgs = document.getElementById("chatMessages");
-  if (msgs) msgs.innerHTML = "";
-
-  document.querySelectorAll(".mode-toggle button").forEach(b => b.classList.remove("active"));
-  const activeBtn = document.querySelector(`.mode-toggle button[data-mode="${mode}"]`);
-  if (activeBtn) activeBtn.classList.add("active");
-
-  const greeting = mode === "coach"
-    ? "🎓 Koç modundayım! Soruyu anlatamazsan yardımcı olurum — ama cevabı direkt söylemem, ipucu veririm."
-    : "✨ Çözüm modundayım! Soruyu yaz veya yapıştır, adım adım çözeyim.";
-  appendChat("ai", greeting);
-}
-
+/* ── AI Analysis ── */
 async function analyzeWithAI(text) {
   const subjectEl = document.getElementById("detectedSubject");
   const hintEl = document.getElementById("subjectHint");
@@ -82,7 +89,6 @@ async function analyzeWithAI(text) {
 
     const ders = SUBJECTS.includes(parsed.ders) ? parsed.ders : "Diğer";
     subjectEl.textContent = ders;
-    subjectEl.style.color = SUBJECT_COLORS[ders] || "var(--accent)";
     hintEl.textContent = parsed.konu ? "Konu: " + parsed.konu : "Ders tespit edildi.";
     noteEl.textContent = parsed.ipucu || "Analiz alınamadı.";
 
@@ -97,13 +103,13 @@ async function analyzeWithAI(text) {
   }
 }
 
+/* ── AI Solve ── */
 async function solveWithAI(text, imageFile) {
   const solutionBox = document.getElementById("solutionBox");
   const solveBtn = document.getElementById("solveBtn");
   if (!solutionBox) return;
 
   solutionBox.textContent = "";
-  solutionBox.classList.add("streaming");
   solutionBox.innerHTML = '<span class="cursor-blink"></span>';
   if (solveBtn) solveBtn.disabled = true;
 
@@ -126,27 +132,33 @@ async function solveWithAI(text, imageFile) {
       if (chunk?.text) {
         fullText += chunk.text;
         solutionBox.innerHTML = fullText + '<span class="cursor-blink"></span>';
-        solutionBox.scrollTop = solutionBox.scrollHeight;
       }
     }
     solutionBox.textContent = fullText;
-    solutionBox.classList.remove("streaming");
     addXp(30);
     showToast("🧠 Çözüm tamamlandı! +30 XP", "success");
   } catch (e) {
     solutionBox.textContent = "Çözüm alınamadı: " + e.message;
-    solutionBox.classList.remove("streaming");
     showToast("Çözüm hatası: " + e.message, "error");
   } finally {
     if (solveBtn) solveBtn.disabled = false;
   }
 }
 
-async function sendChat() {
+/* ── AI Coach Chat ── */
+async function sendChat(msgOverride) {
   const inp = document.getElementById("chatInput");
-  const msg = inp.value.trim();
+  const msg = msgOverride || inp.value.trim();
   if (!msg) return;
-  inp.value = "";
+  if (!msgOverride) inp.value = "";
+
+  if (isFirstChat) {
+    const msgs = document.getElementById("chatMessages");
+    if (msgs && msgs.children.length === 0) {
+      appendChat("ai", "Merhaba! Ben senin LGS Koçunum. Sana nasıl yardımcı olabilirim? Çalışma programı yapabiliriz veya motivasyon verebilirim! 😊");
+    }
+    isFirstChat = false;
+  }
 
   appendChat("user", msg);
   chatHistory.push({ role: "user", content: msg });
@@ -154,11 +166,9 @@ async function sendChat() {
   const thinking = appendChat("ai", "Düşünüyorum...");
   thinking.classList.add("thinking");
 
-  const systemPrompt = chatMode === "coach" ? COACH_PROMPT : SOLVE_CHAT_PROMPT;
-
   try {
     const messages = [
-      { role: "system", content: systemPrompt },
+      { role: "system", content: COACH_PROMPT },
       ...chatHistory.map(m => ({ role: m.role, content: m.content }))
     ];
 
@@ -183,6 +193,93 @@ async function sendChat() {
   } catch (e) {
     thinking.textContent = "Bağlantı hatası: " + e.message;
     thinking.classList.remove("thinking");
-    thinking.style.color = "var(--danger)";
+    thinking.classList.add("text-danger");
+  }
+}
+
+function quickChat(msg) {
+  switchTab('coach');
+  sendChat(msg);
+}
+
+/* ── AI Plan Generator ── */
+async function generateAIPlan() {
+  const activeBooks = state.library.filter(b => !b.finished);
+  if (activeBooks.length === 0) {
+    showToast("Plan yapabilmek için Kütüphane'ye en az 1 aktif kitap eklemelisin.", "warning");
+    return;
+  }
+
+  const target = state.dailyPlan.targetQuestions || 100;
+  
+  const booksData = activeBooks.map(b => ({ id: b.id, name: b.name, subject: b.subject, difficulty: b.difficulty }));
+  const userMessage = `Günlük Hedef: ${target} Soru.\nAktif Kaynaklarım: ${JSON.stringify(booksData)}`;
+
+  showToast("Yapay zeka programını hazırlıyor...", "info");
+
+  try {
+    const response = await puter.ai.chat([
+      { role: "system", content: PLAN_PROMPT },
+      { role: "user", content: userMessage }
+    ], false, { model: AI_MODEL });
+
+    const result = response.message.content;
+    let parsed;
+    try {
+      const clean = result.replace(/```json|```/g, "").trim();
+      parsed = JSON.parse(clean);
+    } catch (e) {
+      showToast("AI yanıtı parse edilemedi.", "error");
+      return;
+    }
+
+    if (!Array.isArray(parsed)) {
+      showToast("AI geçersiz bir format döndürdü.", "error");
+      return;
+    }
+
+    // Assign IDs and clear old tasks
+    state.dailyPlan.tasks = parsed.map(p => ({
+      id: generateId(),
+      bookId: p.bookId || "",
+      text: p.text || "Görev",
+      questions: parseInt(p.questions) || 0,
+      isDone: false
+    }));
+    
+    save();
+    renderDailyPlan();
+    showToast("Günün planı AI tarafından oluşturuldu!", "success");
+
+  } catch (e) {
+    showToast("AI Plan hatası: " + e.message, "error");
+  }
+}
+
+/* ── Mistake Analysis AI ── */
+async function analyzeMistakeAI(subject, topic, reason) {
+  const reasonMap = {
+    "A": "Konuyu Hiç Anlamadım",
+    "B": "Konuyu Anladım Ama Dikkat/Okuma Hatası Yaptım",
+    "C": "Konuyu Biliyorum Ama Bu Tarz (Yeni Nesil) Soru Görmemiştim"
+  };
+  
+  const userMessage = `Ders: ${subject}\nKonu: ${topic}\nHata Nedeni: ${reasonMap[reason]}`;
+  
+  const response = await puter.ai.chat([
+    { role: "system", content: MISTAKE_ANALYSIS_PROMPT },
+    { role: "user", content: userMessage }
+  ], false, { model: AI_MODEL });
+
+  const result = response.message.content;
+  try {
+    const clean = result.replace(/```json|```/g, "").trim();
+    return JSON.parse(clean);
+  } catch (e) {
+    console.error("Mistake AI JSON Parse Error", result);
+    return {
+      message: "Analiz tamamlandı fakat format hatası oluştu. Lütfen bu konu üzerine test çözmeye devam et.",
+      actionType: "tactic"
+    };
   }
 }

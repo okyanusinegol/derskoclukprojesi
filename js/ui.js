@@ -1,8 +1,392 @@
 /* ═══════════════════════════════════════════
-   UI — Arayüz Güncellemeleri
+   UI — Arayüz Güncellemeleri ve Modül Mantığı
 ═══════════════════════════════════════════ */
 let chart = null;
-let chatOpen = false;
+let mockChartLine = null;
+
+/* ── Tab Switching ── */
+function switchTab(tabId) {
+  document.querySelectorAll('.nav-item').forEach(btn => btn.classList.remove('active'));
+  const activeBtn = document.querySelector(`.nav-item[data-tab="${tabId}"]`);
+  if (activeBtn) activeBtn.classList.add('active');
+
+  document.querySelectorAll('.page').forEach(page => page.classList.add('hidden'));
+  const activePage = document.getElementById(`page-${tabId}`);
+  if (activePage) {
+    activePage.classList.remove('hidden');
+    window.scrollTo(0, 0);
+  }
+}
+
+function switchPlanTab(subtabId) {
+  document.querySelectorAll('.segment-btn').forEach(btn => btn.classList.remove('active'));
+  document.querySelector(`.segment-btn[onclick="switchPlanTab('${subtabId}')"]`).classList.add('active');
+  
+  document.getElementById('subtab-daily').classList.add('hidden');
+  document.getElementById('subtab-library').classList.add('hidden');
+  
+  document.getElementById(`subtab-${subtabId}`).classList.remove('hidden');
+}
+
+/* ── Modals ── */
+function closeAddBookModal() { document.getElementById("addBookModal").classList.add("hidden"); }
+function openAddBookModal() { document.getElementById("addBookModal").classList.remove("hidden"); }
+function closeAddTaskModal() { document.getElementById("addTaskModal").classList.add("hidden"); }
+function openSettingsModal() { 
+  document.getElementById("settingsModal").classList.remove("hidden"); 
+  document.getElementById("themeToggle").checked = (state.theme === "dark");
+}
+function closeSettingsModal() { document.getElementById("settingsModal").classList.add("hidden"); }
+
+function openAddMockModal() { document.getElementById("addMockModal").classList.remove("hidden"); }
+function closeAddMockModal() { document.getElementById("addMockModal").classList.add("hidden"); }
+
+/* ── Theme ── */
+function toggleTheme() {
+  state.theme = document.getElementById("themeToggle").checked ? "dark" : "light";
+  save();
+  applyTheme();
+}
+
+function applyTheme() {
+  if (state.theme === "dark") {
+    document.documentElement.setAttribute("data-theme", "dark");
+  } else {
+    document.documentElement.removeAttribute("data-theme");
+  }
+}
+
+function openAddTaskModal() {
+  const select = document.getElementById("taskBookInput");
+  select.innerHTML = '<option value="">(Kitapsız Görev)</option>';
+  state.library.filter(b => !b.finished).forEach(b => {
+    select.innerHTML += `<option value="${b.id}">${b.name}</option>`;
+  });
+  document.getElementById("addTaskModal").classList.remove("hidden");
+}
+
+/* ── Onboarding ── */
+function selectLevel(level) {
+  const sName = document.getElementById("targetSchoolName").value.trim();
+  const sScore = parseFloat(document.getElementById("targetSchoolScore").value);
+  if (!sName || !sScore) return showToast("Lütfen hedef lise ve puanı girin", "error");
+
+  state.targetSchool = { name: sName, score: sScore };
+  state.studyLevel = level;
+  let target = 100;
+  if(level === 1) target = 100;
+  if(level === 2) target = 160;
+  if(level === 3) target = 250;
+  state.dailyPlan.targetQuestions = target;
+  save();
+  document.getElementById("onboardingModal").classList.add("hidden");
+  showToast("Harika! Hedefin güncellendi. Hedef: " + target + " soru/gün", "success");
+  refreshUI();
+}
+
+/* ── Gamification ── */
+function getGamificationEmoji(entityLevel) {
+  const stages = {
+    1: { emoji: "🌱", text: "Aşama 1: Filiz" },
+    2: { emoji: "🌿", text: "Aşama 2: Fidan" },
+    3: { emoji: "🪴", text: "Aşama 3: Saksı Bitkisi" },
+    4: { emoji: "🌳", text: "Aşama 4: Ağaç" },
+    5: { emoji: "🌲🐿️", text: "Aşama 5: Orman" }
+  };
+  return stages[entityLevel] || stages[5];
+}
+
+function updateGamification() {
+  const stage = getGamificationEmoji(state.gamificationEntity);
+  setText("plantEmoji", stage.emoji);
+  setText("plantStatus", stage.text);
+}
+
+function checkLevelUp() {
+  let oldEntity = state.gamificationEntity;
+  const solved = state.totalScans;
+  if (solved > 500) state.gamificationEntity = 5;
+  else if (solved > 300) state.gamificationEntity = 4;
+  else if (solved > 150) state.gamificationEntity = 3;
+  else if (solved > 50) state.gamificationEntity = 2;
+  else state.gamificationEntity = 1;
+  
+  if (oldEntity !== state.gamificationEntity) {
+    showToast("🎉 Bahçen büyüdü! Yeni aşama: " + getGamificationEmoji(state.gamificationEntity).text, "success");
+    save();
+  }
+}
+
+/* ── Library Logic ── */
+function saveBook() {
+  const name = document.getElementById("bookNameInput").value.trim();
+  const subject = document.getElementById("bookSubjectInput").value;
+  const diff = document.getElementById("bookDifficultyInput").value;
+  if (!name) return showToast("Kitap adı zorunludur", "error");
+  state.library.push({ id: generateId(), name, subject, difficulty: diff, finished: false });
+  save();
+  closeAddBookModal();
+  document.getElementById("bookNameInput").value = "";
+  showToast("Kaynak kütüphaneye eklendi", "success");
+  renderLibrary();
+}
+
+function toggleBookFinished(id) {
+  const book = state.library.find(b => b.id === id);
+  if(book) {
+    book.finished = !book.finished;
+    save();
+    renderLibrary();
+  }
+}
+
+function renderLibrary() {
+  const container = document.getElementById("libraryList");
+  if (!container) return;
+  if (!state.library || state.library.length === 0) {
+    container.innerHTML = '<p class="text-sm text-muted text-center py-4">Kütüphanen boş. Kaynaklarını ekleyerek başla!</p>';
+    return;
+  }
+  container.innerHTML = "";
+  state.library.forEach(b => {
+    const diffColor = b.difficulty === "Zor" ? "text-danger" : (b.difficulty === "Orta" ? "text-warning" : "text-success");
+    container.innerHTML += `
+      <div class="list-item ${b.finished ? 'done' : ''}">
+        <div class="flex-1">
+          <p class="font-bold text-sm task-text">${b.name}</p>
+          <p class="text-xs text-muted">${b.subject} • <span class="${diffColor}">${b.difficulty}</span></p>
+        </div>
+        <div class="checkbox-custom" onclick="toggleBookFinished('${b.id}')">
+          ${b.finished ? '<i class="ri-check-line text-lg"></i>' : ''}
+        </div>
+      </div>
+    `;
+  });
+}
+
+/* ── Daily Plan Logic ── */
+function saveTask() {
+  const bookId = document.getElementById("taskBookInput").value;
+  const text = document.getElementById("taskTextInput").value.trim();
+  const qCount = parseInt(document.getElementById("taskQuestionCountInput").value) || 0;
+  if (!text || qCount <= 0) return showToast("Görev tanımı ve geçerli soru sayısı girin", "error");
+  state.dailyPlan.tasks.push({ id: generateId(), text, bookId, questions: qCount, isDone: false });
+  save();
+  closeAddTaskModal();
+  document.getElementById("taskTextInput").value = "";
+  document.getElementById("taskQuestionCountInput").value = "";
+  renderDailyPlan();
+}
+
+function toggleTaskDone(id) {
+  const task = state.dailyPlan.tasks.find(t => t.id === id);
+  if (!task) return;
+  task.isDone = !task.isDone;
+  if (task.isDone) {
+    state.totalScans += task.questions;
+    const book = state.library.find(b => b.id === task.bookId);
+    const subj = book ? book.subject : "Diğer";
+    state.errorsBySubject[subj] = (state.errorsBySubject[subj] || 0) + task.questions;
+    updateHistoricalStats(task.questions);
+    checkLevelUp();
+    showToast(`Harika! ${task.questions} soru eklendi.`, "success");
+  } else {
+    state.totalScans = Math.max(0, state.totalScans - task.questions);
+    updateHistoricalStats(-task.questions);
+  }
+  save();
+  refreshUI();
+}
+
+function updateHistoricalStats(deltaQuestions) {
+  const today = getTodayStr();
+  if (!state.historicalStats[today]) {
+    state.historicalStats[today] = { target: state.dailyPlan.targetQuestions, solved: 0, extra: 0 };
+  }
+  let stats = state.historicalStats[today];
+  stats.solved += deltaQuestions;
+  if (stats.solved < 0) stats.solved = 0;
+  if (stats.solved > stats.target) {
+    stats.extra = stats.solved - stats.target;
+  } else {
+    stats.extra = 0;
+  }
+}
+
+function renderDailyPlan() {
+  const target = state.dailyPlan.targetQuestions || 100;
+  setText("dailyGoalText", `${target} Soru`);
+  const solved = state.dailyPlan.tasks.filter(t => t.isDone).reduce((sum, t) => sum + (t.questions||0), 0);
+  setText("dailyProgressText", `${solved} / ${target} Soru Çözüldü`);
+  const container = document.getElementById("taskList");
+  if (!container) return;
+  if (!state.dailyPlan.tasks || state.dailyPlan.tasks.length === 0) {
+    container.innerHTML = '<p class="text-sm text-muted text-center py-4">Bugün için henüz plan yapmadın.</p>';
+    return;
+  }
+  container.innerHTML = "";
+  state.dailyPlan.tasks.forEach(t => {
+    container.innerHTML += `
+      <div class="list-item ${t.isDone ? 'done' : ''}">
+        <div class="flex-1">
+          <p class="font-bold text-sm task-text">${t.text}</p>
+          <p class="text-xs text-muted">${t.questions} Soru</p>
+        </div>
+        <div class="checkbox-custom" onclick="toggleTaskDone('${t.id}')">
+          ${t.isDone ? '<i class="ri-check-line text-lg"></i>' : ''}
+        </div>
+      </div>
+    `;
+  });
+}
+
+function updateCountdown() {
+  const el = document.getElementById("countdownDays");
+  if (!el) return;
+  const lgsDate = new Date("2026-06-13T09:30:00");
+  const today = new Date();
+  const diffTime = Math.abs(lgsDate - today);
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+  el.textContent = diffDays + " GÜN";
+}
+
+/* ── Mock Exams (Deneme Takibi) ── */
+function saveMockExam() {
+  const name = document.getElementById("mockNameInput").value.trim() || `Deneme ${state.mockExams.length + 1}`;
+  
+  const getVal = (id) => parseInt(document.getElementById(id).value) || 0;
+  
+  const turD = getVal("mockTurD"); const turY = getVal("mockTurY");
+  const matD = getVal("mockMatD"); const matY = getVal("mockMatY");
+  const fenD = getVal("mockFenD"); const fenY = getVal("mockFenY");
+  const inkD = getVal("mockInkD"); const inkY = getVal("mockInkY");
+  const ingD = getVal("mockIngD"); const ingY = getVal("mockIngY");
+  const dinD = getVal("mockDinD"); const dinY = getVal("mockDinY");
+  
+  const calcNet = (d, y) => d - (y / 3);
+  
+  const nets = {
+    tur: calcNet(turD, turY),
+    mat: calcNet(matD, matY),
+    fen: calcNet(fenD, fenY),
+    ink: calcNet(inkD, inkY),
+    ing: calcNet(ingD, ingY),
+    din: calcNet(dinD, dinY)
+  };
+  
+  // Approximate LGS score calculation
+  const weightedNet = (nets.tur + nets.mat + nets.fen) * 4 + (nets.ink + nets.ing + nets.din) * 1;
+  const maxWeightedNet = 270; // 60*4 + 30*1
+  
+  // Base 190, max 500
+  let score = 190 + (weightedNet / maxWeightedNet) * 310;
+  if (score < 190) score = 190;
+  if (score > 500) score = 500;
+  
+  state.mockExams.push({
+    id: generateId(),
+    date: getTodayStr(),
+    name: name,
+    nets: nets,
+    score: parseFloat(score.toFixed(2))
+  });
+  
+  save();
+  closeAddMockModal();
+  showToast(`${name} kaydedildi. Puanın: ${score.toFixed(2)}`, "success");
+  
+  // Clear inputs
+  ["mockNameInput","mockTurD","mockTurY","mockMatD","mockMatY","mockFenD","mockFenY","mockInkD","mockInkY","mockIngD","mockIngY","mockDinD","mockDinY"].forEach(id => {
+    document.getElementById(id).value = "";
+  });
+  
+  renderMockExams();
+  refreshMockChart();
+}
+
+function renderMockExams() {
+  const container = document.getElementById("mockList");
+  if (!container) return;
+  
+  if (!state.mockExams || state.mockExams.length === 0) {
+    container.innerHTML = '<p class="text-xs text-muted text-center py-4">Henüz bir deneme sınavı eklemedin.</p>';
+    return;
+  }
+  
+  let html = "";
+  // Reverse to show latest first
+  [...state.mockExams].reverse().forEach(m => {
+    const totalNet = Object.values(m.nets).reduce((a, b) => a + b, 0).toFixed(2);
+    html += `
+      <div class="list-item">
+        <div class="flex-1">
+          <p class="font-bold text-sm text-primary">${m.name}</p>
+          <p class="text-xs text-muted">${m.date} • ${totalNet} Toplam Net</p>
+        </div>
+        <div class="text-right">
+          <p class="font-bold text-lg text-dark">${m.score}</p>
+          <p class="text-xs text-muted">LGS Puanı</p>
+        </div>
+      </div>
+    `;
+  });
+  container.innerHTML = html;
+}
+
+function initMockChart() {
+  const canvas = document.getElementById("mockChart");
+  if (!canvas) return;
+  
+  const ctx = canvas.getContext("2d");
+  
+  // Ensure array exists
+  if (!state.mockExams) state.mockExams = [];
+  
+  const labels = state.mockExams.map(m => m.name.substring(0,10));
+  const data = state.mockExams.map(m => m.score);
+  
+  mockChartLine = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels: labels,
+      datasets: [{
+        label: "LGS Puanı",
+        data: data,
+        borderColor: "#4f46e5",
+        backgroundColor: "rgba(79, 70, 229, 0.1)",
+        borderWidth: 2,
+        fill: true,
+        tension: 0.3,
+        pointBackgroundColor: "#ffffff",
+        pointBorderColor: "#4f46e5",
+        pointBorderWidth: 2,
+        pointRadius: 4
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        y: { beginAtZero: false, min: 190, max: 500 }
+      },
+      plugins: {
+        legend: { display: false }
+      }
+    }
+  });
+}
+
+function refreshMockChart() {
+  if (!mockChartLine) {
+    initMockChart();
+    return;
+  }
+  
+  mockChartLine.data.labels = state.mockExams.map(m => m.name.substring(0,10));
+  mockChartLine.data.datasets[0].data = state.mockExams.map(m => m.score);
+  mockChartLine.update();
+}
+
 
 /* ── Refresh UI ── */
 function refreshUI() {
@@ -18,7 +402,19 @@ function refreshUI() {
   setText("totalScans", state.totalScans);
   setText("usernameDisplay", username);
   setText("avatarLetter", username.charAt(0).toUpperCase());
-
+  
+  updateGamification();
+  renderLibrary();
+  renderDailyPlan();
+  updateCountdown();
+  renderExtraStats();
+  renderMockExams();
+  renderMotivationLoop();
+  renderMistakes();
+  
+  if (state.targetSchool && state.targetSchool.name) {
+    setText("dailyQuote", `Bu testi çözmek zor gelebilir ama ${state.targetSchool.name} hedefine ulaşmak için sadece bir adım. Başarabilirsin!`);
+  }
 }
 
 function setText(id, val) {
@@ -30,7 +426,33 @@ function setStyle(id, prop, val) {
   if (el) el.style[prop] = val;
 }
 
-
+/* ── Extra Stats Chart ── */
+function renderExtraStats() {
+  const container = document.getElementById("extraQuestionsStats");
+  if (!container) return;
+  const entries = Object.entries(state.historicalStats || {});
+  if (entries.length === 0) return;
+  let html = `<div class="space-y-2">`;
+  entries.sort((a,b) => b[0].localeCompare(a[0])).slice(0, 5).forEach(([date, data]) => {
+    if (data.extra > 0) {
+      html += `
+        <div class="flex justify-between items-center bg-light-success p-2 rounded-xl">
+          <span class="text-xs font-bold text-success">${date}</span>
+          <span class="text-sm font-bold text-success">+${data.extra} Soru Fazla!</span>
+        </div>
+      `;
+    } else {
+      html += `
+        <div class="flex justify-between items-center bg-light p-2 rounded-xl">
+          <span class="text-xs text-muted">${date}</span>
+          <span class="text-xs text-muted">Hedefte kalındı (${data.solved}/${data.target})</span>
+        </div>
+      `;
+    }
+  });
+  html += `</div>`;
+  container.innerHTML = html;
+}
 
 /* ── Chart ── */
 function initChart() {
@@ -38,18 +460,27 @@ function initChart() {
   if (!canvas) return;
   const ctx = canvas.getContext("2d");
   const labels = Object.keys(state.errorsBySubject);
+  
+  const getSubjectColor = (k) => {
+    const colors = {
+      "Matematik": "#4f46e5", "Fen": "#10b981", "Türkçe": "#f43f5e",
+      "İnkılap": "#f59e0b", "İngilizce": "#8b5cf6", "Din": "#0ea5e9", "Diğer": "#64748b"
+    };
+    return colors[k] || "#64748b";
+  };
+
   chart = new Chart(ctx, {
     type: "doughnut",
     data: {
       labels,
       datasets: [{
         data: labels.map(k => state.errorsBySubject[k]),
-        backgroundColor: labels.map(k => SUBJECT_COLORS[k] || "#94a3b8"),
-        borderColor: "rgba(5,8,15,0.8)", borderWidth: 3, hoverOffset: 8
+        backgroundColor: labels.map(k => getSubjectColor(k)),
+        borderWidth: 2, borderColor: "#ffffff", hoverOffset: 8
       }]
     },
     options: {
-      responsive: true, maintainAspectRatio: false, cutout: "65%",
+      responsive: true, maintainAspectRatio: false, cutout: "70%",
       plugins: {
         legend: { display: false },
         tooltip: { callbacks: { label: ctx => " " + ctx.label + ": " + ctx.parsed + " soru" } }
@@ -61,50 +492,43 @@ function initChart() {
 function refreshChart() {
   if (!chart) return;
   const labels = Object.keys(state.errorsBySubject);
+  const getSubjectColor = (k) => {
+    const colors = {
+      "Matematik": "#4f46e5", "Fen": "#10b981", "Türkçe": "#f43f5e",
+      "İnkılap": "#f59e0b", "İngilizce": "#8b5cf6", "Din": "#0ea5e9", "Diğer": "#64748b"
+    };
+    return colors[k] || "#64748b";
+  };
+
   chart.data.datasets[0].data = labels.map(k => state.errorsBySubject[k]);
   chart.update();
 
   const bd = document.getElementById("subjectBreakdown");
   if (!bd) return;
   bd.innerHTML = "";
-  const total = state.totalScans || 1;
+  const total = Object.values(state.errorsBySubject).reduce((a,b)=>a+b, 0) || 1;
+  
   labels.forEach(k => {
     const v = state.errorsBySubject[k] || 0;
     if (v === 0) return;
     const pct = Math.round(v / total * 100);
+    const color = getSubjectColor(k);
+    
     const div = document.createElement("div");
-    div.style.cssText = "display:flex;align-items:center;gap:8px;";
-    div.innerHTML =
-      '<span style="width:8px;height:8px;border-radius:50%;background:' + (SUBJECT_COLORS[k]||'#94a3b8') + ';flex-shrink:0"></span>' +
-      '<span style="font-size:0.75rem;flex:1;color:var(--text)">' + k + '</span>' +
-      '<span class="font-mono" style="font-size:0.7rem;color:var(--muted)">' + v + '</span>' +
-      '<div style="width:60px;height:4px;border-radius:99px;background:rgba(255,255,255,0.06);overflow:hidden">' +
-        '<div style="height:100%;width:' + pct + '%;background:' + (SUBJECT_COLORS[k]||'#94a3b8') + ';border-radius:99px"></div>' +
-      '</div>';
+    div.className = "flex items-center gap-2";
+    div.innerHTML = `
+      <span style="width:10px;height:10px;border-radius:50%;background:${color};flex-shrink:0"></span>
+      <span class="text-sm flex-1 font-bold">${k}</span>
+      <span class="font-mono text-sm text-muted">${v}</span>
+      <div style="width:80px;height:6px;border-radius:99px;background:var(--border);overflow:hidden">
+        <div style="height:100%;width:${pct}%;background:${color};border-radius:99px"></div>
+      </div>
+    `;
     bd.appendChild(div);
   });
 }
 
-/* ── Chat Toggle ── */
-function toggleChat() {
-  chatOpen = !chatOpen;
-  const panel = document.getElementById("chatPanel");
-  const toggle = document.getElementById("chatToggle");
-  const dot = document.getElementById("chatDot");
-
-  if (chatOpen) {
-    panel.classList.remove("hidden-panel");
-    toggle.style.display = "none";
-    if (dot) dot.style.display = "none";
-    if (chatHistory.length === 0) {
-      setChatMode(chatMode);
-    }
-  } else {
-    panel.classList.add("hidden-panel");
-    toggle.style.display = "flex";
-  }
-}
-
+/* ── Chat Messages ── */
 function appendChat(role, text) {
   const box = document.getElementById("chatMessages");
   if (!box) return document.createElement("div");
@@ -134,20 +558,155 @@ function showToast(msg, type) {
 
 /* ── Utils ── */
 function clearAll() {
-  if (!confirm("Tüm veriler silinecek. Emin misin?")) return;
-  state = { xp:0, totalScans:0, errorsBySubject:{"Matematik":0,"Fen":0,"Türkçe":0,"İnkılap":0,"İngilizce":0,"Din":0,"Diğer":0} };
-  save(); refreshUI(); refreshChart();
+  if (!confirm("Tüm istatistiklerin, kütüphanen ve seviyen sıfırlanacak. Emin misin?")) return;
+  state = { 
+    xp:0, totalScans:0, 
+    errorsBySubject:{"Matematik":0,"Fen":0,"Türkçe":0,"İnkılap":0,"İngilizce":0,"Din":0,"Diğer":0},
+    studyLevel: null, library: [], dailyPlan: { date: "", targetQuestions: 100, tasks: [] },
+    historicalStats: {}, gamificationEntity: 1, theme: "light", mockExams: []
+  };
+  save(); 
+  document.getElementById("onboardingModal").classList.remove("hidden");
+  refreshUI(); refreshChart(); refreshMockChart();
+  
   const ocrText = document.getElementById("ocrText");
   if (ocrText) ocrText.value = "";
   setText("detectedSubject", "—");
-  setText("subjectHint", "Soru tarandığında burada görünür");
+  setText("subjectHint", "Soru tarandığında görünür");
   setText("aiNote", "Henüz analiz yok.");
   const sb = document.getElementById("solutionBox");
   if (sb) sb.textContent = "Bir soruyu tarayıp \"Çöz!\" butonuna basınca adım adım çözüm burada belirecek.";
-  currentImageFile = null;
+  showToast("Veriler sıfırlandı", "success");
 }
 
 function changeUsername() {
   const n = prompt("Yeni isim veya takma adın:", username);
   if (n && n.trim()) { username = n.trim(); saveUsername(username); refreshUI(); }
+}
+
+/* ── Motivation Loop ── */
+function renderMotivationLoop() {
+  const box = document.getElementById("targetMotivationBox");
+  const textEl = document.getElementById("targetMotivationText");
+  if (!box || !textEl) return;
+  
+  if (!state.mockExams || state.mockExams.length === 0 || !state.targetSchool || !state.targetSchool.score) {
+    box.classList.add("hidden");
+    return;
+  }
+  
+  const lastScore = state.mockExams[state.mockExams.length - 1].score;
+  const target = state.targetSchool.score;
+  const diff = target - lastScore;
+  
+  box.classList.remove("hidden");
+  
+  if (diff <= 0) {
+    textEl.innerHTML = `🎉 Harika! Son denemende ${lastScore} puan aldın. ${state.targetSchool.name} (${target}) hedefine çoktan ulaştın. Sadece böyle devam et!`;
+  } else {
+    textEl.innerHTML = `💪 Son denemen ${lastScore} puan. Hayalindeki ${state.targetSchool.name} (${target}) hedefine sadece <strong>${diff.toFixed(2)} puan</strong> kaldı! En çok hata yaptığın derslere odaklanarak bu farkı çok rahat kapatabiliriz.`;
+  }
+}
+
+/* ── Mistake Analysis ── */
+function openMistakeModal() {
+  document.getElementById("mistakeModal").classList.remove("hidden");
+}
+
+function closeMistakeModal() {
+  document.getElementById("mistakeModal").classList.add("hidden");
+}
+
+async function submitMistakeAnalysis() {
+  const subject = document.getElementById("mistakeSubject").value;
+  const topic = document.getElementById("mistakeTopic").value.trim();
+  const reason = document.getElementById("mistakeReason").value;
+  
+  if (!topic) return showToast("Lütfen konuyu yazın", "error");
+  
+  const btn = document.getElementById("analyzeMistakeBtn");
+  btn.textContent = "AI Analiz Ediyor...";
+  btn.disabled = true;
+  
+  try {
+    const feedback = await analyzeMistakeAI(subject, topic, reason);
+    
+    state.mistakes.push({
+      id: generateId(),
+      date: getTodayStr(),
+      subject,
+      topic,
+      reason,
+      feedback
+    });
+    save();
+    
+    closeMistakeModal();
+    document.getElementById("mistakeTopic").value = "";
+    showMistakeResult(feedback);
+    renderMistakes();
+  } catch (err) {
+    console.error(err);
+    showToast("Analiz başarısız oldu.", "error");
+  } finally {
+    btn.textContent = "Analiz Et";
+    btn.disabled = false;
+  }
+}
+
+function showMistakeResult(feedback) {
+  const modal = document.getElementById("mistakeResultModal");
+  const content = document.getElementById("mistakeResultContent");
+  const action = document.getElementById("mistakeResultAction");
+  
+  content.innerHTML = `<p>${feedback.message}</p>`;
+  action.innerHTML = "";
+  
+  if (feedback.actionType === "video" && feedback.link) {
+    action.innerHTML = `<a href="${feedback.link}" target="_blank" class="btn btn-primary w-full"><i class="ri-youtube-fill"></i> Çözüm Videosu İzle</a>`;
+  } else if (feedback.actionType === "practice" && feedback.practiceQuestions) {
+    action.innerHTML = `<button onclick="addExtraPractice('${feedback.practiceQuestions}', '${feedback.topic}')" class="btn btn-primary w-full"><i class="ri-add-line"></i> ${feedback.practiceQuestions} Soru Ekle</button>`;
+  }
+  
+  modal.classList.remove("hidden");
+}
+
+function addExtraPractice(qCount, topic) {
+  state.dailyPlan.tasks.push({
+    id: generateId(),
+    text: `Dikkat Pratiği: ${topic}`,
+    bookId: "",
+    questions: parseInt(qCount) || 15,
+    isDone: false
+  });
+  save();
+  document.getElementById("mistakeResultModal").classList.add("hidden");
+  showToast("Görev günlük plana eklendi!", "success");
+  refreshUI();
+}
+
+function renderMistakes() {
+  const container = document.getElementById("mistakeList");
+  if (!container) return;
+  
+  if (!state.mistakes || state.mistakes.length === 0) {
+    container.innerHTML = '<p class="text-xs text-muted text-center py-4">Henüz hiç yanlış analizi eklemedin.</p>';
+    return;
+  }
+  
+  let html = "";
+  [...state.mistakes].reverse().forEach(m => {
+    html += `
+      <div class="list-item flex-col items-start gap-2">
+        <div class="flex justify-between w-full">
+          <p class="font-bold text-sm text-danger">${m.subject} - ${m.topic}</p>
+          <span class="text-xs text-muted">${m.date}</span>
+        </div>
+        <div class="bg-light w-full p-2 rounded text-xs text-dark italic border-l-2 border-primary">
+          ${m.feedback.message}
+        </div>
+      </div>
+    `;
+  });
+  container.innerHTML = html;
 }
