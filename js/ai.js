@@ -29,11 +29,18 @@ function getCoachPrompt() {
 Kurallar:
 - Soru sorarsa veya tavsiye isterse destekleyici, motive edici ve rehberlik eden bir dille yanıt ver.
 - Eğer öğrenci çalışma programı yapmanı, değiştirmesini veya yeni bir görev eklemeni isterse, elindeki aktif kitaplara göre bir plan oluştur.
-- ÖĞRENCİNİN AKTİF KİTAPLARI: ${JSON.stringify(booksData)}
-- ÖNEMLİ: Eğer öğrencinin programını güncelliyorsan, metin cevabının HERHANGİ BİR YERİNE mutlaka şu formatta bir JSON bloğu ekle (bunu sistem algılayıp uygulayacaktır):
+- Eğer öğrenci yeni bir test kitabı, soru bankası veya deneme aldığını söylerse, bunu kütüphanesine ekle.
+- ÖĞRENCİNİN MEVCUT AKTİF KİTAPLARI: ${JSON.stringify(booksData)}
+- ÖNEMLİ (PROGRAM İÇİN): Eğer öğrencinin programını güncelliyorsan, metin cevabının HERHANGİ BİR YERİNE mutlaka şu formatta bir JSON bloğu ekle:
 \`\`\`plan
 [
   { "bookId": "ilgili_kitabin_id_si", "text": "Görev açıklaması (örn: Matematik Çarpanlar Test 1)", "questions": 20 }
+]
+\`\`\`
+- ÖNEMLİ (KÜTÜPHANE İÇİN): Eğer öğrencinin kütüphanesine yeni bir kitap EKLİYORSAN, metin cevabının HERHANGİ BİR YERİNE mutlaka şu formatta bir JSON bloğu ekle (Ders alanı: Matematik, Fen, Türkçe, İnkılap, İngilizce, Din veya Diğer olmak zorundadır):
+\`\`\`library
+[
+  { "name": "Kitabın Adı", "subject": "Ders Adı", "difficulty": "Orta" }
 ]
 \`\`\`
 - Her zaman Türkçe konuş, bolca emoji kullan.`;
@@ -217,6 +224,29 @@ async function sendChat(msgOverride) {
 
     let result = await fetchPollinations(messages);
 
+    // Agentic Library Parsing
+    const libMatch = result.match(/```library\n([\s\S]*?)```/);
+    if (libMatch) {
+       try {
+         const libData = JSON.parse(libMatch[1]);
+         libData.forEach(book => {
+           state.library.push({
+             id: generateId(),
+             name: book.name || "Yeni Kitap",
+             subject: SUBJECTS.includes(book.subject) ? book.subject : "Diğer",
+             difficulty: book.difficulty || "Orta",
+             finished: false
+           });
+         });
+         save();
+         if(typeof renderLibrary === 'function') renderLibrary();
+         
+         result = result.replace(libMatch[0], "").trim() + "\n\n📚 *Kütüphaneni güncelledim! Kitapların eklendi.*";
+       } catch(e) {
+         console.error("Kütüphane ayrıştırma hatası", e);
+       }
+    }
+
     // Agentic Plan Parsing
     const planMatch = result.match(/```plan\n([\s\S]*?)```/);
     if (planMatch) {
@@ -232,7 +262,6 @@ async function sendChat(msgOverride) {
          save();
          if(typeof renderDailyPlan === 'function') renderDailyPlan();
          
-         // Remove JSON block from the user-facing text and append success message
          result = result.replace(planMatch[0], "").trim() + "\n\n✅ *Arka planda programını güncelledim! Plan sekmesinden kontrol edebilirsin.*";
        } catch(e) {
          console.error("Plan ayrıştırma hatası", e);

@@ -563,7 +563,8 @@ function clearAll() {
     xp:0, totalScans:0, 
     errorsBySubject:{"Matematik":0,"Fen":0,"Türkçe":0,"İnkılap":0,"İngilizce":0,"Din":0,"Diğer":0},
     studyLevel: null, library: [], dailyPlan: { date: "", targetQuestions: 100, tasks: [] },
-    historicalStats: {}, gamificationEntity: 1, theme: "light", mockExams: []
+    historicalStats: {}, gamificationEntity: 1, theme: "light", mockExams: [],
+    targetSchool: { name: "", score: 0 }, mistakes: []
   };
   save(); 
   document.getElementById("onboardingModal").classList.remove("hidden");
