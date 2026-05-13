@@ -4,11 +4,13 @@
 const AI_MODEL = "gpt-4.1-mini";
 
 const ANALYZE_PROMPT = `Sen LGS sınavına hazırlık asistanısın. Sana bir OCR ile okunmuş veya elle yazılmış soru metni gelecek.
+Eğer metnin içinde "grafik", "harita", "tablo", "şekle göre", "yandaki", "görsel" gibi kelimeler geçiyorsa veya sorunun eksik olduğunu/sadece görselle anlaşılabileceğini düşünüyorsan gorselGerekli alanını true yap.
 JSON formatında şu alanları döndür (başka hiçbir şey yazma, sadece JSON):
 {
   "ders": "<Matematik|Fen|Türkçe|İnkılap|İngilizce|Din|Diğer>",
   "konu": "<kısa konu adı, max 5 kelime>",
-  "ipucu": "<öğrenciye 2-3 cümle ipucu ve çalışma tavsiyesi, kesin cevabı söyleme, Türkçe>"
+  "ipucu": "<öğrenciye 2-3 cümle ipucu ve çalışma tavsiyesi, kesin cevabı söyleme, Türkçe>",
+  "gorselGerekli": <true veya false>
 }`;
 
 const SOLVE_PROMPT = `Sen LGS sınavına hazırlanan 8. sınıf öğrencilerine yardım eden uzman bir öğretmensin.
@@ -106,11 +108,13 @@ async function analyzeWithAI(text) {
       const ders = result.match(/"ders"\s*:\s*"([^"]+)"/)?.[1] || "Diğer";
       const konu = result.match(/"konu"\s*:\s*"([^"]+)"/)?.[1] || "";
       const ipucu = result.match(/"ipucu"\s*:\s*"([^"]+)"/)?.[1] || result;
-      parsed = { ders, konu, ipucu };
+      const gorselGerekli = result.includes('"gorselGerekli": true') || result.includes('"gorselGerekli":true');
+      parsed = { ders, konu, ipucu, gorselGerekli };
     }
 
     const ders = SUBJECTS.includes(parsed.ders) ? parsed.ders : "Diğer";
     subjectEl.textContent = ders;
+    subjectEl.dataset.visionNeeded = parsed.gorselGerekli ? "true" : "false";
     hintEl.textContent = parsed.konu ? "Konu: " + parsed.konu : "Ders tespit edildi.";
     noteEl.textContent = parsed.ipucu || "Analiz alınamadı.";
 
@@ -139,8 +143,9 @@ async function solveWithAI(text, imageFile) {
   try {
     let fullText = "";
     
-    // Hibrit Sistem: Matematik ve Fotoğraf varsa Puter (Vision) kullan
-    if (imageFile && detectedSubject === "Matematik") {
+    // Hibrit Sistem: AI görsel gerekli dediyse (harita, grafik vs.) veya Matematikse ve Fotoğraf varsa Puter (Vision) kullan
+    const visionNeeded = document.getElementById("detectedSubject")?.dataset?.visionNeeded === "true";
+    if (imageFile && (detectedSubject === "Matematik" || visionNeeded)) {
       const response = await puter.ai.chat(
         SOLVE_PROMPT + "\n\nBu fotoğraftaki soruyu çöz.",
         imageFile, false, { model: AI_MODEL, stream: true }
