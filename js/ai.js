@@ -43,10 +43,18 @@ A: "Konuyu Hiç Anlamadım"
 B: "Konuyu Anladım Ama Dikkat/Okuma Hatası Yaptım"
 C: "Konuyu Biliyorum Ama Bu Tarz (Yeni Nesil) Soru Görmemiştim"
 
+DERSLERE GÖRE KALİTELİ YOUTUBE KANALLARI (BUNLARIN DIŞINA ÇIKMA):
+- Matematik: Rehber Matematik, Partikül Matematik, Şenol Hoca
+- Fen: Tonguç Akademi, Benim Hocam, VIP Fizik
+- Türkçe: Rüştü Hoca, Tonguç Akademi, Benim Hocam
+- İnkılap: Sadettin Akyayla, Tonguç Akademi, Benim Hocam
+- İngilizce: Tonguç Akademi, Benim Hocam
+- Din: Tonguç Akademi, Benim Hocam
+
 KURALLAR (ANTI-HALÜSİNASYON):
-Eğer Seçim A ise: "actionType" "video" olmalı. "link" alanına "https://www.youtube.com/results?search_query=" formatında doğrudan ve sadece kaliteli LGS kanallarını (Rehber Matematik, Tonguç Akademi, Partikül Matematik vb.) içeren bir URL üret (Örn: https://www.youtube.com/results?search_query=Rehber+Matematik+LGS+Üslü+Sayılar). Asla spesifik video linki uydurma.
+Eğer Seçim A ise: "actionType" "video" olmalı. "link" alanına "https://www.youtube.com/results?search_query=" formatında doğrudan ve SADECE öğrencinin DERSİNE UYGUN yukarıdaki kaliteli LGS kanallarını içeren bir URL üret. Örn: Fen dersi için "https://www.youtube.com/results?search_query=Tonguç+Akademi+LGS+Fen+Elektrik". Asla Matematik hocasını Fen için önerme! Asla spesifik video linki (watch?v=) uydurma, çünkü link bozuk çıkar. Sadece search_query linki ver.
 Eğer Seçim B ise: "actionType" "practice" olmalı. "practiceQuestions" alanına 15-20 arası bir sayı ver.
-Eğer Seçim C ise: "actionType" "video" veya "tactic" olabilir. Yeni nesil soru çözme taktikleri ver ve arama linki koy.
+Eğer Seçim C ise: "actionType" "video" veya "tactic" olabilir. Yeni nesil soru çözme taktikleri ver ve soru tarzına uygun arama linki koy.
 
 ÇIKTI FORMATI SADECE JSON OLACAKTIR:
 {
