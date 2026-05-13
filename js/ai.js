@@ -68,6 +68,21 @@ Eğer Seçim C ise: "actionType" "video" veya "tactic" olabilir. Yeni nesil soru
 let chatHistory = [];
 let isFirstChat = true;
 
+/* ── Pollinations AI Helper ── */
+async function fetchPollinations(messages) {
+  const response = await fetch('https://text.pollinations.ai/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      messages: messages,
+      model: 'openai',
+      jsonMode: false
+    })
+  });
+  if (!response.ok) throw new Error("Yapay zeka bağlantı hatası");
+  return await response.text();
+}
+
 /* ── AI Analysis ── */
 async function analyzeWithAI(text) {
   const subjectEl = document.getElementById("detectedSubject");
@@ -78,12 +93,11 @@ async function analyzeWithAI(text) {
   noteEl.textContent = "AI analiz ediyor...";
 
   try {
-    const response = await puter.ai.chat([
+    const result = await fetchPollinations([
       { role: "system", content: ANALYZE_PROMPT },
       { role: "user", content: "SORU METNİ:\n" + text }
-    ], false, { model: AI_MODEL });
+    ]);
 
-    const result = response.message.content;
     let parsed;
     try {
       const clean = result.replace(/```json|```/g, "").trim();
@@ -115,6 +129,7 @@ async function analyzeWithAI(text) {
 async function solveWithAI(text, imageFile) {
   const solutionBox = document.getElementById("solutionBox");
   const solveBtn = document.getElementById("solveBtn");
+  const detectedSubject = document.getElementById("detectedSubject")?.textContent;
   if (!solutionBox) return;
 
   solutionBox.textContent = "";
@@ -122,26 +137,30 @@ async function solveWithAI(text, imageFile) {
   if (solveBtn) solveBtn.disabled = true;
 
   try {
-    let response;
-    if (imageFile) {
-      response = await puter.ai.chat(
+    let fullText = "";
+    
+    // Hibrit Sistem: Matematik ve Fotoğraf varsa Puter (Vision) kullan
+    if (imageFile && detectedSubject === "Matematik") {
+      const response = await puter.ai.chat(
         SOLVE_PROMPT + "\n\nBu fotoğraftaki soruyu çöz.",
         imageFile, false, { model: AI_MODEL, stream: true }
       );
+      
+      for await (const chunk of response) {
+        if (chunk?.text) {
+          fullText += chunk.text;
+          solutionBox.innerHTML = fullText + '<span class="cursor-blink"></span>';
+        }
+      }
     } else {
-      response = await puter.ai.chat([
+      // Sözel dersler veya sadece metin varsa Pollinations (Text) kullan
+      fullText = await fetchPollinations([
         { role: "system", content: SOLVE_PROMPT },
         { role: "user", content: text }
-      ], false, { model: AI_MODEL, stream: true });
+      ]);
+      solutionBox.innerHTML = fullText + '<span class="cursor-blink"></span>';
     }
 
-    let fullText = "";
-    for await (const chunk of response) {
-      if (chunk?.text) {
-        fullText += chunk.text;
-        solutionBox.innerHTML = fullText + '<span class="cursor-blink"></span>';
-      }
-    }
     solutionBox.textContent = fullText;
     addXp(30);
     showToast("🧠 Çözüm tamamlandı! +30 XP", "success");
@@ -180,24 +199,15 @@ async function sendChat(msgOverride) {
       ...chatHistory.map(m => ({ role: m.role, content: m.content }))
     ];
 
-    const response = await puter.ai.chat(messages, false, {
-      model: AI_MODEL, stream: true
-    });
+    const result = await fetchPollinations(messages);
 
-    thinking.textContent = "";
+    thinking.textContent = result;
     thinking.classList.remove("thinking");
+    
+    const box = document.getElementById("chatMessages");
+    if (box) box.scrollTop = box.scrollHeight;
 
-    let fullText = "";
-    for await (const chunk of response) {
-      if (chunk?.text) {
-        fullText += chunk.text;
-        thinking.textContent = fullText;
-        const box = document.getElementById("chatMessages");
-        if (box) box.scrollTop = box.scrollHeight;
-      }
-    }
-
-    chatHistory.push({ role: "assistant", content: fullText });
+    chatHistory.push({ role: "assistant", content: result });
   } catch (e) {
     thinking.textContent = "Bağlantı hatası: " + e.message;
     thinking.classList.remove("thinking");
@@ -226,12 +236,11 @@ async function generateAIPlan() {
   showToast("Yapay zeka programını hazırlıyor...", "info");
 
   try {
-    const response = await puter.ai.chat([
+    const result = await fetchPollinations([
       { role: "system", content: PLAN_PROMPT },
       { role: "user", content: userMessage }
-    ], false, { model: AI_MODEL });
+    ]);
 
-    const result = response.message.content;
     let parsed;
     try {
       const clean = result.replace(/```json|```/g, "").trim();
@@ -274,20 +283,26 @@ async function analyzeMistakeAI(subject, topic, reason) {
   
   const userMessage = `Ders: ${subject}\nKonu: ${topic}\nHata Nedeni: ${reasonMap[reason]}`;
   
-  const response = await puter.ai.chat([
-    { role: "system", content: MISTAKE_ANALYSIS_PROMPT },
-    { role: "user", content: userMessage }
-  ], false, { model: AI_MODEL });
-
-  const result = response.message.content;
   try {
-    const clean = result.replace(/```json|```/g, "").trim();
-    return JSON.parse(clean);
-  } catch (e) {
-    console.error("Mistake AI JSON Parse Error", result);
+    const result = await fetchPollinations([
+      { role: "system", content: MISTAKE_ANALYSIS_PROMPT },
+      { role: "user", content: userMessage }
+    ]);
+
+    try {
+      const clean = result.replace(/```json|```/g, "").trim();
+      return JSON.parse(clean);
+    } catch (e) {
+      console.error("Mistake AI JSON Parse Error", result);
+      return {
+        message: "Analiz tamamlandı fakat format hatası oluştu. Lütfen bu konu üzerine test çözmeye devam et.",
+        actionType: "tactic"
+      };
+    }
+  } catch (error) {
     return {
-      message: "Analiz tamamlandı fakat format hatası oluştu. Lütfen bu konu üzerine test çözmeye devam et.",
-      actionType: "tactic"
+        message: "Bağlantı hatası oluştu. Tavsiye alınamadı.",
+        actionType: "tactic"
     };
   }
 }
