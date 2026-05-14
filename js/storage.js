@@ -25,7 +25,8 @@ let state = {
   theme: "light",
   mockExams: [], // { id, date, name, nets: {}, score }
   targetSchool: { name: "", score: 0 },
-  mistakes: [] // { id, date, subject, topic, reason, feedback }
+  mistakes: [], // { id, date, subject, topic, reason, feedback }
+  vacationUntil: null // Timestamp in ms
 };
 let username = "Sen";
 
@@ -44,6 +45,7 @@ function load() {
       if (!state.mockExams) state.mockExams = [];
       if (!state.targetSchool) state.targetSchool = { name: "", score: 0 };
       if (!state.mistakes) state.mistakes = [];
+      if (!state.vacationUntil) state.vacationUntil = null;
     }
     const n = localStorage.getItem(NAME_KEY);
     if (n) username = n;

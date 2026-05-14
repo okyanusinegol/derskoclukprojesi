@@ -52,6 +52,13 @@ Kurallar:
 ]
 \`\`\`
 *(navigate için geçerli değerler: home, plan, scanner, coach, stats)*
+- ÖNEMLİ (TATİL / İZİN İÇİN): Eğer öğrenci tatilde olduğunu, gezeceğini, bir süre mola verdiğini ve plan istemediğini söylerse, tatil gün sayısını belirleyerek şu JSON bloğunu kullan (Örn: 3 gün için):
+\`\`\`action
+[
+  { "type": "vacation", "days": 3 }
+]
+\`\`\`
+- BİLGİ: Öğrenci şu an tatildeyse plan hazırlama. Tatil bitiş: ${state.vacationUntil && state.vacationUntil > Date.now() ? new Date(state.vacationUntil).toLocaleDateString() : 'Yok'}
 - Her zaman Türkçe konuş, bolca emoji kullan.`;
 }
 
@@ -293,6 +300,11 @@ async function sendChat(msgOverride) {
              if(typeof refreshUI === 'function') refreshUI();
            } else if (action.type === "navigate") {
              if(typeof switchTab === 'function') switchTab(action.value);
+           } else if (action.type === "vacation") {
+             const days = parseInt(action.value || action.days) || 1;
+             state.vacationUntil = Date.now() + days * 24 * 60 * 60 * 1000;
+             save();
+             showToast(`Tamamdır, ${days} gün boyunca sana plan vermeyeceğim. İyi tatiller!`, "success");
            }
          });
          result = result.replace(actionMatch[0], "").trim() + "\n\n⚙️ *İstediğin sistem ayarını uyguladım!*";
@@ -322,6 +334,11 @@ function quickChat(msg) {
 
 /* ── AI Plan Generator ── */
 async function generateAIPlan() {
+  if (state.vacationUntil && Date.now() < state.vacationUntil) {
+    showToast("Şu an tatildesin, bugün plan yok! İyi dinlenmeler 😊", "info");
+    return;
+  }
+
   const activeBooks = state.library.filter(b => !b.finished);
   if (activeBooks.length === 0) {
     showToast("Plan yapabilmek için Kütüphane'ye en az 1 aktif kitap eklemelisin.", "warning");

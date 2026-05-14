@@ -177,10 +177,11 @@ function setPomodoroTime(mins) {
 function promptCustomPomodoro() {
   if (isPomodoroRunning) return showToast("Çalışan sayacı durdurmadan değiştiremezsin.", "warning");
   const mins = parseInt(prompt("Kaç dakika odaklanacaksın?", "40"));
-  if (mins && mins > 0 && mins <= 120) {
+  if (mins && mins > 0) {
+    if (mins > 120) {
+      showToast("120 dakikadan uzun bir seans yorucu olabilir ama sana güveniyorum! İyi çalışmalar.", "warning");
+    }
     setPomodoroTime(mins);
-  } else if (mins > 120) {
-    showToast("120 dakikadan uzun bir seans verimsizdir!", "error");
   }
 }
 
