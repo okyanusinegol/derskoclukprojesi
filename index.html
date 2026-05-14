@@ -28,7 +28,7 @@
     <div class="user-profile">
       <div class="avatar" id="avatarLetter">L</div>
       <div class="user-info">
-        <h2 id="usernameDisplay">LGS Öğrencisi</h2>
+        <h2 class="flex items-center gap-2 m-0 text-base font-bold"><span id="usernameDisplay">LGS Öğrencisi</span> <span id="streakBadge" class="badge bg-light-warning text-warning hidden" style="font-size:0.6rem;">🔥 0 Seri</span></h2>
         <p class="user-level">Seviye <span id="headerLevel" class="font-bold text-primary">1</span> • <span id="levelTitle">LGS Acemi</span></p>
       </div>
     </div>
@@ -70,7 +70,12 @@
 
       <!-- Gamification: Virtual Garden -->
       <section class="card gamification-card mt-4 text-center">
-        <h3 class="font-bold mb-2">🌱 Sanal Bahçem</h3>
+        <div class="flex justify-center items-center gap-2 mb-2">
+          <h3 class="font-bold">🌱 Sanal Bahçem</h3>
+          <button class="btn-icon bg-light-primary text-primary shadow-sm" style="width:28px; height:28px; font-size:16px;" onclick="openGamificationInfoModal()">
+            <i class="ri-information-fill"></i>
+          </button>
+        </div>
         <p class="text-xs text-muted mb-4">Çalıştıkça bahçen büyür!</p>
         <div class="garden-container" id="gardenContainer">
           <div class="plant-emoji" id="plantEmoji">🌱</div>
@@ -377,6 +382,39 @@
 
 <!-- ─── MODALS ─── -->
 
+<!-- Gamification Info Modal -->
+<div id="gamificationInfoModal" class="modal-overlay hidden" style="align-items: flex-start; padding-top: 2rem; overflow-y: auto; z-index: 999;">
+  <div class="modal-content mb-10">
+    <div class="flex justify-between items-center mb-4">
+      <h3 class="font-bold text-lg">🌱 Evrim Rehberi</h3>
+      <button class="btn-icon" onclick="closeGamificationInfoModal()"><i class="ri-close-line"></i></button>
+    </div>
+    <p class="text-sm text-muted mb-4">Ağacın çözdüğün toplam soru sayısına göre büyür. Toplam 100 seviye vardır ve her <strong>250 soruda</strong> bir seviye atlarsın.</p>
+    
+    <div class="space-y-2 bg-light p-3 rounded-xl max-h-64 overflow-y-auto">
+      <div class="flex items-center gap-3"><span class="text-xl">🌱</span><span class="text-sm font-bold">1-9. Seviyeler</span><span class="text-xs text-muted ml-auto">Tohum</span></div>
+      <div class="flex items-center gap-3"><span class="text-xl">🌱✨</span><span class="text-sm font-bold">10-19. Seviyeler</span><span class="text-xs text-muted ml-auto">Filiz</span></div>
+      <div class="flex items-center gap-3"><span class="text-xl">🌿</span><span class="text-sm font-bold">20-29. Seviyeler</span><span class="text-xs text-muted ml-auto">Büyük Filiz</span></div>
+      <div class="flex items-center gap-3"><span class="text-xl">🪴</span><span class="text-sm font-bold">30-39. Seviyeler</span><span class="text-xs text-muted ml-auto">Fidan</span></div>
+      <div class="flex items-center gap-3"><span class="text-xl">🪴🌿</span><span class="text-sm font-bold">40-49. Seviyeler</span><span class="text-xs text-muted ml-auto">Büyük Fidan</span></div>
+      <div class="flex items-center gap-3"><span class="text-xl">🌳</span><span class="text-sm font-bold">50-59. Seviyeler</span><span class="text-xs text-muted ml-auto">Yetişkin Ağaç</span></div>
+      <div class="flex items-center gap-3"><span class="text-xl">🌳🦉</span><span class="text-sm font-bold">60-69. Seviyeler</span><span class="text-xs text-muted ml-auto">Ulu Ağaç</span></div>
+      <div class="flex items-center gap-3"><span class="text-xl">🌳🍎</span><span class="text-sm font-bold">70-79. Seviyeler</span><span class="text-xs text-muted ml-auto">Bilgi Ağacı</span></div>
+      <div class="flex items-center gap-3"><span class="text-xl">🌲🐿️</span><span class="text-sm font-bold">80-89. Seviyeler</span><span class="text-xs text-muted ml-auto">Büyük Orman</span></div>
+      <div class="flex items-center gap-3"><span class="text-xl">🌲🦅</span><span class="text-sm font-bold">90-99. Seviyeler</span><span class="text-xs text-muted ml-auto">Efsanevi Orman</span></div>
+      <div class="flex items-center gap-3"><span class="text-xl">🌲🌌</span><span class="text-sm font-bold">100. Seviye</span><span class="text-xs text-muted ml-auto">Evrensel Orman</span></div>
+    </div>
+    
+    <div class="mt-4 bg-light-primary p-3 rounded-xl border border-primary">
+      <h4 class="font-bold text-sm text-primary mb-1">Mevcut Durumun</h4>
+      <p class="text-xs font-mono text-dark" id="infoCurrentState">Seviye: 1 • Çözülen: 0 Soru</p>
+      <p class="text-xs text-muted mt-1" id="infoNextLevel">Sonraki seviye için 250 soru çözmen lazım.</p>
+    </div>
+
+    <button class="btn btn-outline w-full mt-4" onclick="closeGamificationInfoModal()">Anladım</button>
+  </div>
+</div>
+
 <!-- Onboarding Modal -->
 <div id="onboardingModal" class="modal-overlay hidden" style="align-items: flex-start; padding-top: 2rem; overflow-y: auto;">
   <div class="modal-content mb-10">
@@ -505,6 +543,21 @@
           <p class="text-xs text-muted">İsmini veya takma adını değiştir</p>
         </div>
         <button class="btn btn-outline py-1 px-3 text-xs" onclick="changeUsername(); closeSettingsModal();">Değiştir</button>
+      </div>
+
+      <div class="p-3 border border-border rounded-xl mt-4">
+        <h4 class="font-bold text-sm mb-2">Tema Rengi</h4>
+        <p class="text-xs text-muted mb-3">Sana en uygun rengi seç veya kendi rengini oluştur</p>
+        
+        <div class="color-palette-grid mb-3" id="colorPaletteGrid">
+          <!-- Populated by JS -->
+        </div>
+        
+        <div class="flex items-center gap-2 mt-2">
+          <input type="color" id="customColorPicker" class="form-control" style="width: 50px; height: 40px; padding: 0; cursor: pointer;">
+          <input type="text" id="customColorHex" class="form-control flex-1" placeholder="#HexKodu" maxlength="7">
+          <button class="btn btn-primary" onclick="applyCustomColor()">Uygula</button>
+        </div>
       </div>
     </div>
   </div>

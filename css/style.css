@@ -11,6 +11,7 @@
   
   --bg: #f8fafc;            /* Slate 50 */
   --surface: #ffffff;
+  --surface-glass: rgba(255, 255, 255, 0.85);
   --border: #e2e8f0;        /* Slate 200 */
   
   --text: #0f172a;          /* Slate 900 */
@@ -30,6 +31,7 @@
 [data-theme="dark"] {
   --bg: #0f172a;            /* Slate 900 */
   --surface: #1e293b;       /* Slate 800 */
+  --surface-glass: rgba(30, 41, 59, 0.85);
   --border: #334155;        /* Slate 700 */
   --text: #f8fafc;          /* Slate 50 */
   --text-muted: #94a3b8;    /* Slate 400 */
@@ -146,7 +148,9 @@ body {
   justify-content: space-between;
   align-items: center;
   padding: 1.25rem;
-  background: var(--surface);
+  background: var(--surface-glass);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   position: sticky;
   top: 0;
   z-index: 10;
@@ -265,7 +269,7 @@ body {
 .segment-btn.active { background: var(--surface); color: var(--primary); box-shadow: var(--shadow-sm); }
 
 /* Gamification Garden */
-.gamification-card { position: relative; overflow: hidden; }
+.gamification-card { position: relative; overflow: hidden; transition: all 0.5s ease; }
 .garden-container { 
   height: 120px; display: flex; align-items: flex-end; justify-content: center;
   background: linear-gradient(to bottom, #e0f2fe 0%, #bae6fd 100%);
@@ -276,6 +280,25 @@ body {
 @keyframes bounce { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(0.95) scaleX(1.05); } }
 .gamification-card::before { content: "☀️"; position: absolute; top: 20px; left: 20px; font-size: 1.5rem; opacity: 0.8; }
 .gamification-card::after { content: "☁️"; position: absolute; top: 10px; right: 30px; font-size: 1.5rem; opacity: 0.6; }
+
+/* Vibe Ranks & Glow */
+.card-legendary-glow {
+  animation: legendaryPulse 3s infinite alternate !important;
+  border-color: rgba(245, 158, 11, 0.5) !important;
+}
+@keyframes legendaryPulse {
+  0% { box-shadow: 0 0 15px 2px rgba(245, 158, 11, 0.3), 0 0 25px 5px rgba(139, 92, 246, 0.2) !important; }
+  100% { box-shadow: 0 0 25px 6px rgba(245, 158, 11, 0.6), 0 0 45px 12px rgba(139, 92, 246, 0.5) !important; }
+}
+
+.avatar-bronze { border: 2px solid #cd7f32; box-shadow: 0 0 8px rgba(205, 127, 50, 0.5); }
+.avatar-silver { border: 2px solid #94a3b8; box-shadow: 0 0 8px rgba(148, 163, 184, 0.5); }
+.avatar-gold   { border: 2px solid #fbbf24; box-shadow: 0 0 10px rgba(251, 191, 36, 0.6); }
+.avatar-diamond { border: 2px solid #06b6d4; box-shadow: 0 0 12px rgba(6, 182, 212, 0.8); animation: diamondGlow 2s infinite alternate; }
+@keyframes diamondGlow {
+  0% { box-shadow: 0 0 8px rgba(6, 182, 212, 0.5); }
+  100% { box-shadow: 0 0 16px rgba(6, 182, 212, 1), 0 0 5px #fff; }
+}
 
 /* Library & Tasks */
 .list-item {
@@ -371,6 +394,18 @@ input:checked + .slider:before { transform: translateX(20px); }
 }
 @keyframes modalScale { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 
+/* Color Palette */
+.color-palette-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(32px, 1fr)); gap: 8px;
+}
+.color-swatch {
+  width: 32px; height: 32px; border-radius: 50%;
+  border: 2px solid transparent; cursor: pointer;
+  transition: transform 0.2s, border-color 0.2s;
+}
+.color-swatch:hover { transform: scale(1.1); }
+.color-swatch.active { border-color: var(--text); box-shadow: 0 0 0 2px var(--surface); transform: scale(1.1); }
+
 /* Coach Chat */
 .coach-container { display: flex; flex-direction: column; height: calc(100dvh - 180px); background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); border: 1px solid var(--border); overflow: hidden; }
 .coach-header { padding: 1rem; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 0.75rem; background: var(--bg); }
@@ -410,7 +445,10 @@ input:checked + .slider:before { transform: translateX(20px); }
 .bottom-nav {
   position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
   width: 100%; max-width: 480px; height: var(--nav-height);
-  background: var(--surface); border-top: 1px solid var(--border);
+  background: var(--surface-glass);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-top: 1px solid var(--border);
   display: flex; justify-content: space-around; align-items: center;
   z-index: 50; padding-bottom: env(safe-area-inset-bottom);
 }
@@ -430,7 +468,7 @@ input:checked + .slider:before { transform: translateX(20px); }
 .nav-item.active .nav-icon-active { display: block; }
 
 /* Toast */
-.toast-container { position: fixed; top: 1rem; left: 50%; transform: translateX(-50%); z-index: 100; display: flex; flex-direction: column; gap: 0.5rem; width: 90%; max-width: 400px; }
+.toast-container { position: fixed; top: 1rem; left: 50%; transform: translateX(-50%); z-index: 9999; display: flex; flex-direction: column; gap: 0.5rem; width: 90%; max-width: 400px; }
 .toast {
   padding: 0.75rem 1rem; border-radius: var(--radius-sm); font-size: 0.875rem; font-weight: 600;
   animation: toastIn 0.3s ease, toastOut 0.3s ease 2.7s forwards; box-shadow: var(--shadow-lg);
@@ -438,6 +476,7 @@ input:checked + .slider:before { transform: translateX(20px); }
 .toast-success { background: var(--success); color: white; }
 .toast-error { background: var(--danger); color: white; }
 .toast-info { background: var(--primary); color: white; }
+.toast-warning { background: var(--warning); color: white; text-shadow: 0 1px 2px rgba(0,0,0,0.1); }
 
 @keyframes toastIn { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes toastOut { to { opacity: 0; transform: translateY(-20px); } }
@@ -462,3 +501,12 @@ input:checked + .slider:before { transform: translateX(20px); }
 .solution-content { white-space: pre-wrap; word-break: break-word; }
 .cursor-blink { display: inline-block; width: 2px; height: 1em; background: var(--primary); animation: blink 0.8s step-end infinite; vertical-align: text-bottom; margin-left: 2px; }
 @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+
+/* Confetti */
+.confetti {
+  position: fixed; top: -10px; width: 10px; height: 10px; border-radius: 50%;
+  z-index: 9999; pointer-events: none; animation: fall linear forwards;
+}
+@keyframes fall {
+  to { transform: translateY(100vh) rotate(360deg); }
+}

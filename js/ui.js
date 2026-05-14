@@ -35,13 +35,42 @@ function closeAddTaskModal() { document.getElementById("addTaskModal").classList
 function openSettingsModal() { 
   document.getElementById("settingsModal").classList.remove("hidden"); 
   document.getElementById("themeToggle").checked = (state.theme === "dark");
+  if(typeof renderColorPalette === "function") renderColorPalette();
 }
 function closeSettingsModal() { document.getElementById("settingsModal").classList.add("hidden"); }
 
 function openAddMockModal() { document.getElementById("addMockModal").classList.remove("hidden"); }
 function closeAddMockModal() { document.getElementById("addMockModal").classList.add("hidden"); }
 
+function openGamificationInfoModal() {
+  const solved = state.totalScans;
+  const level = state.gamificationEntity;
+  const nextThreshold = level * 250;
+  const needed = nextThreshold - solved;
+  
+  document.getElementById("infoCurrentState").innerHTML = `Seviye: <strong>${level}</strong> • Çözülen: <strong>${solved}</strong> Soru`;
+  if (level < 100) {
+    document.getElementById("infoNextLevel").textContent = `Sonraki seviye için ${needed} soru daha çözmen lazım.`;
+  } else {
+    document.getElementById("infoNextLevel").textContent = `Maksimum seviyeye ulaştın! Gerçek bir LGS şampiyonusun.`;
+  }
+  
+  document.getElementById("gamificationInfoModal").classList.remove("hidden");
+}
+
+function closeGamificationInfoModal() {
+  document.getElementById("gamificationInfoModal").classList.add("hidden");
+}
+
 /* ── Theme ── */
+const PRESET_COLORS = [
+  "#ef4444", "#f97316", "#f59e0b", "#eab308", "#84cc16", "#22c55e",
+  "#10b981", "#14b8a6", "#06b6d4", "#0ea5e9", "#3b82f6", "#6366f1",
+  "#8b5cf6", "#a855f7", "#d946ef", "#ec4899", "#f43f5e", "#64748b",
+  "#78716c", "#dc2626", "#ea580c", "#d97706", "#ca8a04", "#65a30d",
+  "#16a34a", "#059669", "#0f766e", "#0891b2", "#0284c7", "#2563eb"
+];
+
 function toggleTheme() {
   state.theme = document.getElementById("themeToggle").checked ? "dark" : "light";
   save();
@@ -53,6 +82,53 @@ function applyTheme() {
     document.documentElement.setAttribute("data-theme", "dark");
   } else {
     document.documentElement.removeAttribute("data-theme");
+  }
+  
+  if (state.primaryColor) {
+    document.documentElement.style.setProperty('--primary', state.primaryColor);
+  } else {
+    document.documentElement.style.removeProperty('--primary');
+  }
+}
+
+function renderColorPalette() {
+  const grid = document.getElementById("colorPaletteGrid");
+  if (!grid) return;
+  
+  let html = "";
+  const current = state.primaryColor || "#4f46e5"; // default indigo
+  
+  PRESET_COLORS.forEach(color => {
+    const isActive = color.toLowerCase() === current.toLowerCase() ? "active" : "";
+    html += `<div class="color-swatch ${isActive}" style="background-color: ${color}" onclick="selectColor('${color}')"></div>`;
+  });
+  
+  grid.innerHTML = html;
+  
+  const picker = document.getElementById("customColorPicker");
+  const hexInput = document.getElementById("customColorHex");
+  if (picker && hexInput) {
+    picker.value = current;
+    hexInput.value = current;
+    picker.oninput = (e) => { hexInput.value = e.target.value; };
+  }
+}
+
+function selectColor(hex) {
+  state.primaryColor = hex;
+  save();
+  applyTheme();
+  renderColorPalette();
+  showToast("Tema rengi güncellendi!", "success");
+}
+
+function applyCustomColor() {
+  const hexInput = document.getElementById("customColorHex").value.trim();
+  const hexRegex = /^#([0-9A-Fa-f]{3}){1,2}$/i;
+  if (hexRegex.test(hexInput)) {
+    selectColor(hexInput);
+  } else {
+    showToast("Geçersiz renk kodu. # ile başlamalıdır.", "error");
   }
 }
 
@@ -86,33 +162,60 @@ function selectLevel(level) {
 
 /* ── Gamification ── */
 function getGamificationEmoji(entityLevel) {
-  const stages = {
-    1: { emoji: "🌱", text: "Aşama 1: Filiz" },
-    2: { emoji: "🌿", text: "Aşama 2: Fidan" },
-    3: { emoji: "🪴", text: "Aşama 3: Saksı Bitkisi" },
-    4: { emoji: "🌳", text: "Aşama 4: Ağaç" },
-    5: { emoji: "🌲🐿️", text: "Aşama 5: Orman" }
-  };
-  return stages[entityLevel] || stages[5];
+  let emoji = "🌱";
+  let title = "Tohum";
+  
+  if (entityLevel >= 100) { emoji = "🌲🌌"; title = "Evrensel Orman"; }
+  else if (entityLevel >= 90) { emoji = "🌲🦅"; title = "Efsanevi Orman"; }
+  else if (entityLevel >= 80) { emoji = "🌲🐿️"; title = "Büyük Orman"; }
+  else if (entityLevel >= 70) { emoji = "🌳🍎"; title = "Bilgi Ağacı"; }
+  else if (entityLevel >= 60) { emoji = "🌳🦉"; title = "Ulu Ağaç"; }
+  else if (entityLevel >= 50) { emoji = "🌳"; title = "Yetişkin Ağaç"; }
+  else if (entityLevel >= 40) { emoji = "🪴🌿"; title = "Büyük Fidan"; }
+  else if (entityLevel >= 30) { emoji = "🪴"; title = "Fidan"; }
+  else if (entityLevel >= 20) { emoji = "🌿"; title = "Büyük Filiz"; }
+  else if (entityLevel >= 10) { emoji = "🌱✨"; title = "Filiz"; }
+  else { emoji = "🌱"; title = "Tohum"; }
+  
+  return { emoji, text: `Seviye ${entityLevel}: ${title}` };
 }
 
 function updateGamification() {
   const stage = getGamificationEmoji(state.gamificationEntity);
   setText("plantEmoji", stage.emoji);
   setText("plantStatus", stage.text);
+  
+  const gamificationCard = document.querySelector(".gamification-card");
+  if (gamificationCard) {
+    if (state.gamificationEntity >= 100) {
+      gamificationCard.classList.add("card-legendary-glow");
+    } else {
+      gamificationCard.classList.remove("card-legendary-glow");
+    }
+  }
+
+  const avatar = document.getElementById("avatarLetter");
+  if (avatar) {
+    avatar.classList.remove("avatar-bronze", "avatar-silver", "avatar-gold", "avatar-diamond");
+    if (state.gamificationEntity >= 80) avatar.classList.add("avatar-diamond");
+    else if (state.gamificationEntity >= 50) avatar.classList.add("avatar-gold");
+    else if (state.gamificationEntity >= 20) avatar.classList.add("avatar-silver");
+    else if (state.gamificationEntity >= 5) avatar.classList.add("avatar-bronze");
+  }
 }
 
 function checkLevelUp() {
   let oldEntity = state.gamificationEntity;
   const solved = state.totalScans;
-  if (solved > 500) state.gamificationEntity = 5;
-  else if (solved > 300) state.gamificationEntity = 4;
-  else if (solved > 150) state.gamificationEntity = 3;
-  else if (solved > 50) state.gamificationEntity = 2;
-  else state.gamificationEntity = 1;
+  
+  let newLevel = Math.floor(solved / 250) + 1;
+  if (newLevel > 100) newLevel = 100;
+  
+  state.gamificationEntity = newLevel;
   
   if (oldEntity !== state.gamificationEntity) {
-    showToast("🎉 Bahçen büyüdü! Yeni aşama: " + getGamificationEmoji(state.gamificationEntity).text, "success");
+    showToast("🎉 Bitkin büyüyor! Yeni Seviye: " + state.gamificationEntity, "success");
+    if (typeof launchConfetti === 'function') launchConfetti();
     save();
   }
 }
@@ -200,6 +303,20 @@ function toggleTaskDone(id) {
 
 function updateHistoricalStats(deltaQuestions) {
   const today = getTodayStr();
+  
+  if (deltaQuestions > 0 && state.lastActiveDate !== today) {
+     const yesterday = new Date();
+     yesterday.setDate(yesterday.getDate() - 1);
+     const yStr = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
+     
+     if (state.lastActiveDate === yStr) {
+        state.streak = (state.streak || 0) + 1;
+     } else {
+        state.streak = 1;
+     }
+     state.lastActiveDate = today;
+  }
+
   if (!state.historicalStats[today]) {
     state.historicalStats[today] = { target: state.dailyPlan.targetQuestions, solved: 0, extra: 0 };
   }
@@ -402,6 +519,14 @@ function refreshUI() {
   setText("totalScans", state.totalScans);
   setText("usernameDisplay", username);
   setText("avatarLetter", username.charAt(0).toUpperCase());
+  
+  if (state.streak > 0) {
+    const badge = document.getElementById("streakBadge");
+    if(badge) {
+       badge.textContent = `🔥 ${state.streak} Seri`;
+       badge.classList.remove("hidden");
+    }
+  }
   
   updateGamification();
   renderLibrary();
@@ -710,4 +835,19 @@ function renderMistakes() {
     `;
   });
   container.innerHTML = html;
+}
+
+/* ── Confetti ── */
+function launchConfetti() {
+  const colors = ['#4f46e5', '#10b981', '#f43f5e', '#f59e0b', '#0ea5e9'];
+  for (let i = 0; i < 50; i++) {
+    const confetti = document.createElement('div');
+    confetti.className = 'confetti';
+    confetti.style.left = Math.random() * 100 + 'vw';
+    confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+    confetti.style.animationDuration = (Math.random() * 2 + 1) + 's';
+    confetti.style.animationDelay = (Math.random() * 0.5) + 's';
+    document.body.appendChild(confetti);
+    setTimeout(() => { if (confetti.parentNode) confetti.remove(); }, 3500);
+  }
 }

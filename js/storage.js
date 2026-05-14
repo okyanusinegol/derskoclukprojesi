@@ -23,10 +23,11 @@ let state = {
   historicalStats: {}, // "YYYY-MM-DD": { target, solved, extra }
   gamificationEntity: 1, // 1: Tohum, 2: Filiz, 3: Fidan, 4: Ağaç, 5: Orman
   theme: "light",
-  mockExams: [], // { id, date, name, nets: {}, score }
-  targetSchool: { name: "", score: 0 },
   mistakes: [], // { id, date, subject, topic, reason, feedback }
-  vacationUntil: null // Timestamp in ms
+  vacationUntil: null, // Timestamp in ms
+  streak: 0,
+  lastActiveDate: "",
+  primaryColor: ""
 };
 let username = "Sen";
 
@@ -46,6 +47,9 @@ function load() {
       if (!state.targetSchool) state.targetSchool = { name: "", score: 0 };
       if (!state.mistakes) state.mistakes = [];
       if (!state.vacationUntil) state.vacationUntil = null;
+      if (typeof state.streak === 'undefined') state.streak = 0;
+      if (!state.lastActiveDate) state.lastActiveDate = "";
+      if (typeof state.primaryColor === 'undefined') state.primaryColor = "";
     }
     const n = localStorage.getItem(NAME_KEY);
     if (n) username = n;
